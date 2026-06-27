@@ -590,7 +590,7 @@ body {
 .header-status {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
 .status-indicator {
@@ -610,6 +610,18 @@ body {
     font-size: 13px;
     font-weight: 700;
     color: var(--text-primary);
+}
+
+.header-status .model-badge {
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.header-status .header-separator {
+    color: var(--text-secondary);
+    font-weight: 300;
+    opacity: 0.5;
 }
 
 .header-status .active-chat-title {
