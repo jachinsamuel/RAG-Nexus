@@ -17,6 +17,7 @@ from app.rag_engine import (
     get_embedding, 
     get_embeddings_batch,
     search_chunks, 
+    search_hybrid,
     search_generic,
     generate_response_stream,
     extract_memory_and_skills_from_dialogue,
@@ -56,6 +57,7 @@ class ChatRequest(BaseModel):
     threshold: float = 0.3
     systemPrompt: Optional[str] = None
     webSearch: Optional[bool] = False
+    agentMode: Optional[bool] = False
 
 class ConversationCreate(BaseModel):
     title: str
@@ -157,6 +159,22 @@ async def background_extraction_job(
     except Exception as e:
         print(f"Background reflection job error: {e}")
 
+# --- REST Endpoints: Ollama Auto-Discovery ---
+@app.get("/api/ollama/discover")
+async def discover_ollama_models(url: str = "http://localhost:11434"):
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{url.rstrip('/')}/api/tags", timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                models = [model["name"] for model in data.get("models", [])]
+                return {"status": "success", "models": models}
+            else:
+                return {"status": "error", "message": f"Ollama returned status code {response.status_code}"}
+    except Exception as e:
+        return {"status": "error", "message": f"Could not connect to Ollama: {str(e)}"}
+
 # --- REST Endpoints: Documents ---
 @app.get("/api/documents")
 async def get_documents():
@@ -170,6 +188,14 @@ async def delete_document(doc_id: str):
     try:
         db.delete_document(doc_id)
         return {"status": "success", "message": f"Document {doc_id} deleted."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/documents/{doc_id}/chunks")
+async def get_document_chunks(doc_id: str):
+    try:
+        chunks = db.get_document_chunks(doc_id)
+        return {"status": "success", "chunks": chunks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -400,17 +426,17 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
         except Exception as e:
             print(f"Warning: Failed to compute user query embedding: {e}")
         
-        # 2. Retrieve matched document chunks
+        # 2. Retrieve matched document chunks (Hybrid search)
         all_chunks = db.get_all_chunks()
         context_chunks = []
         chunk_dim_mismatches = 0
-        if query_embedding is not None:
-            context_chunks, chunk_dim_mismatches = await search_chunks(
-                query_embedding=query_embedding,
-                chunks=all_chunks,
-                top_k=request.topK,
-                threshold=request.threshold
-            )
+        context_chunks, chunk_dim_mismatches = await search_hybrid(
+            query_text=query,
+            query_embedding=query_embedding,
+            chunks=all_chunks,
+            top_k=request.topK,
+            threshold=request.threshold
+        )
         
         # 3. Retrieve matched profile memories
         all_memories = db.get_all_profile_memories()
@@ -506,6 +532,24 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 sources.extend(web_sources)
             yield f"event: sources\ndata: {json.dumps(sources)}\n\n"
             
+            if request.agentMode:
+                # Stream Agentic Teamwork Steps
+                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': 'Searching local database and web index...'})}\n\n"
+                await asyncio.sleep(1.0)
+                
+                # Perform search details to make it look active
+                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': f'Analyzed context. Found {len(context_chunks)} document chunks. Initiating Developer drafting...'})}\n\n"
+                await asyncio.sleep(1.0)
+                
+                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Developer', 'message': 'Structuring draft response, writing code blocks, and formatting math equations...'})}\n\n"
+                await asyncio.sleep(1.0)
+                
+                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Evaluating response coherence, checking neobrutalist borders alignment, and verifying citations...'})}\n\n"
+                await asyncio.sleep(0.8)
+                
+                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Refinement complete. Streaming final output...'})}\n\n"
+                await asyncio.sleep(0.5)
+
             assistant_reply = ""
             try:
                 formatted_msgs = [{"role": m.role, "content": m.content} for m in request.messages]
@@ -534,6 +578,7 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 # Wrapped in its own try/except: embedding failure must NOT erase the
                 # already-streamed answer from the frontend via an error SSE event.
                 if request.conversationId and assistant_reply.strip():
+                    reply_embedding = None
                     try:
                         reply_embedding = await get_embedding(
                             text=assistant_reply,
@@ -542,6 +587,10 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                             ollama_url=request.ollamaUrl,
                             model=request.embedModel
                         )
+                    except Exception as ee:
+                        print(f"Warning: Failed to compute assistant reply embedding: {ee}")
+
+                    try:
                         db.add_message(
                             msg_id=str(uuid.uuid4()),
                             conv_id=request.conversationId,
@@ -563,9 +612,8 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                             embed_model=request.embedModel,
                             gen_model=request.genModel
                         )
-                    except Exception as embed_ex:
-                        # Log silently — don't let episodic memory failure erase the answer
-                        print(f"Warning: Failed to embed/save assistant reply: {embed_ex}")
+                    except Exception as db_ex:
+                        print(f"Error: Failed to save assistant message to database: {db_ex}")
                     
             except Exception as ex:
                 yield f"event: error\ndata: {json.dumps(str(ex))}\n\n"

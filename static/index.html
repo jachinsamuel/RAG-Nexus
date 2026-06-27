@@ -130,16 +130,31 @@
                 <!-- Chat messages loaded here -->
             </div>
             
-            <footer class="chat-footer">
+            <footer class="chat-footer" style="position: relative;">
+                <div id="autocomplete-dropdown" class="autocomplete-dropdown" style="display: none;"></div>
                 <form class="chat-input-form" id="chat-form">
                     <button type="button" id="mic-btn" class="mic-btn" title="Voice Input">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                     </button>
                     <input type="text" id="query-input" placeholder="Ask questions or share preferences..." autocomplete="off" required>
+                    <button type="button" id="agent-toggle-btn" class="agent-toggle-btn" title="Toggle Agent Mode (Multi-Agent Loop)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
+                    </button>
                     <button type="submit" id="send-btn" disabled>Send</button>
                 </form>
             </footer>
         </main>
+        
+        <!-- Split-Screen Document Preview Panel -->
+        <div class="preview-pane" id="preview-pane" style="display: none;">
+            <div class="preview-header">
+                <h3 id="preview-doc-title">Document Preview</h3>
+                <button class="preview-close" id="preview-close-btn">&times;</button>
+            </div>
+            <div class="preview-body" id="preview-body">
+                <!-- Reconstructed document text -->
+            </div>
+        </div>
         
         <!-- Drawer: Context / Sources Viewer (Slides in from right) -->
         <div class="drawer" id="context-drawer">
@@ -255,15 +270,20 @@
                 <div class="provider-options" id="ollama-options" style="display: none;">
                     <div class="settings-group">
                         <label for="ollama-url">Ollama Base URL</label>
-                        <input type="text" id="ollama-url" value="http://localhost:11434">
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="ollama-url" value="http://localhost:11434" style="flex-grow: 1;">
+                            <button type="button" class="modal-btn confirm" id="scan-ollama-btn" style="padding: 4px 12px; font-size: 11px; margin: 0; background: var(--accent-color) !important; color: #000000 !important; border: var(--neo-border) !important; box-shadow: var(--neo-shadow-sm) !important;">Scan</button>
+                        </div>
                     </div>
                     <div class="settings-group">
                         <label for="ollama-model">Generative Model</label>
-                        <input type="text" id="ollama-model" value="llama3" placeholder="e.g. llama3, phi3">
+                        <input type="text" id="ollama-model" value="llama3" placeholder="e.g. llama3, phi3" list="ollama-generative-datalist">
+                        <datalist id="ollama-generative-datalist"></datalist>
                     </div>
                     <div class="settings-group">
                         <label for="ollama-embed">Embedding Model</label>
-                        <input type="text" id="ollama-embed" value="nomic-embed-text" placeholder="e.g. nomic-embed-text">
+                        <input type="text" id="ollama-embed" value="nomic-embed-text" placeholder="e.g. nomic-embed-text" list="ollama-embed-datalist">
+                        <datalist id="ollama-embed-datalist"></datalist>
                     </div>
                 </div>
 

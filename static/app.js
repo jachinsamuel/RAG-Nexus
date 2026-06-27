@@ -361,6 +361,47 @@ settingsCloseBtn.addEventListener('click', () => closeDrawer(settingsDrawer));
 drawerCloseBtn.addEventListener('click', () => closeDrawer(contextDrawer));
 saveSettingsBtn.addEventListener('click', saveSettings);
 
+// Scan local Ollama models
+const scanOllamaBtn = document.getElementById('scan-ollama-btn');
+if (scanOllamaBtn) {
+    scanOllamaBtn.addEventListener('click', async () => {
+        const urlInput = document.getElementById('ollama-url');
+        const url = urlInput ? urlInput.value.trim() : 'http://localhost:11434';
+        scanOllamaBtn.disabled = true;
+        scanOllamaBtn.textContent = 'Scanning...';
+        try {
+            const resp = await fetch(`/api/ollama/discover?url=${encodeURIComponent(url)}`);
+            const data = await resp.json();
+            if (data.status === 'success') {
+                const genDatalist = document.getElementById('ollama-generative-datalist');
+                const embedDatalist = document.getElementById('ollama-embed-datalist');
+                
+                genDatalist.innerHTML = '';
+                embedDatalist.innerHTML = '';
+                
+                data.models.forEach(model => {
+                    const opt1 = document.createElement('option');
+                    opt1.value = model;
+                    genDatalist.appendChild(opt1);
+                    
+                    const opt2 = document.createElement('option');
+                    opt2.value = model;
+                    embedDatalist.appendChild(opt2);
+                });
+                showToast(`Scanned ${data.models.length} local Ollama models successfully!`, 'success');
+            } else {
+                showToast(`Scan failed: ${data.message}`, 'error');
+            }
+        } catch (err) {
+            showToast(`Error scanning models: ${err.message}`, 'error');
+        } finally {
+            scanOllamaBtn.disabled = false;
+            scanOllamaBtn.textContent = 'Scan';
+        }
+    });
+}
+
+
 // Tab Switch Navigation
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabPanes = document.querySelectorAll('.tab-pane');
@@ -518,6 +559,13 @@ function renderDocumentList() {
         
         li.appendChild(info);
         li.appendChild(delBtn);
+        
+        // Open preview pane on card click
+        li.style.cursor = 'pointer';
+        li.addEventListener('click', () => {
+            openDocumentPreview(doc.id, doc.name);
+        });
+        
         docList.appendChild(li);
     });
 }
@@ -1096,6 +1144,17 @@ function parseMarkdown(text) {
             const idx = parseInt(tableMatch[1]);
             return tables[idx];
         }
+
+        // Render Headings
+        if (trimmed.startsWith('### ')) {
+            return `<h3>${trimmed.substring(4)}</h3>`;
+        }
+        if (trimmed.startsWith('## ')) {
+            return `<h2>${trimmed.substring(3)}</h2>`;
+        }
+        if (trimmed.startsWith('# ')) {
+            return `<h1>${trimmed.substring(2)}</h1>`;
+        }
         
         // Wrap normal paragraph & convert single newlines to br
         return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
@@ -1141,6 +1200,12 @@ function showCitationsInDrawer(messageSources, highlightIndex) {
         setTimeout(() => {
             targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 120);
+    }
+    
+    // Automatically open split-screen preview and focus the referenced chunk
+    const clickedSource = messageSources[highlightIndex - 1];
+    if (clickedSource && clickedSource.doc_id) {
+        openDocumentPreview(clickedSource.doc_id, clickedSource.doc_name, clickedSource.id);
     }
 }
 
@@ -1294,7 +1359,11 @@ chatForm.addEventListener('submit', async (e) => {
                 topK: state.settings.topK,
                 threshold: state.settings.threshold,
                 systemPrompt: state.settings.systemPrompt,
-                webSearch: !!state.settings.webSearch
+                webSearch: !!state.settings.webSearch,
+                agentMode: (() => {
+                    const btn = document.getElementById('agent-toggle-btn');
+                    return btn ? btn.classList.contains('active') : false;
+                })()
             })
         });
         
@@ -1333,6 +1402,26 @@ chatForm.addEventListener('submit', async (e) => {
                     } else if (currentEvent === 'warning') {
                         const warn = JSON.parse(dataStr);
                         showToast(warn.message, 'error');
+                    } else if (currentEvent === 'agent_step') {
+                        const step = JSON.parse(dataStr);
+                        if (firstTextChunk) {
+                            assistantContentDiv.innerHTML = '';
+                            firstTextChunk = false;
+                        }
+                        const stepDiv = document.createElement('div');
+                        stepDiv.className = 'agent-step-log';
+                        stepDiv.style.margin = '8px 0';
+                        stepDiv.style.padding = '6px 12px';
+                        stepDiv.style.borderLeft = '3px solid var(--cyan-color)';
+                        stepDiv.style.fontFamily = "'Space Grotesk', sans-serif";
+                        stepDiv.style.fontSize = '11.5px';
+                        stepDiv.style.fontWeight = '700';
+                        stepDiv.style.background = 'var(--bg-card)';
+                        stepDiv.style.color = 'var(--text-primary)';
+                        stepDiv.style.borderRadius = '2px';
+                        stepDiv.innerHTML = `&raquo; [${step.agent.toUpperCase()}] &nbsp;${step.message}`;
+                        assistantContentDiv.appendChild(stepDiv);
+                        chatHistory.scrollTop = chatHistory.scrollHeight;
                     } else if (currentEvent === 'text') {
                         const text = JSON.parse(dataStr);
                         if (firstTextChunk) {
@@ -1401,6 +1490,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         exportBtn.addEventListener('click', () => exportConversation());
     }
     initVoiceInput();
+    setupAutocomplete();
 });
 
 // Global Helpers for code-block actions
@@ -1549,3 +1639,229 @@ function initVoiceInput() {
         }
     };
 }
+
+// --- Inline Autocomplete Logic ---
+const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
+let selectedIndex = -1;
+let filteredItems = [];
+let triggerChar = ''; // '/' or '@'
+let triggerIndex = -1;
+
+// Bind Agent Mode toggle button inside chat bar
+const agentToggleBtn = document.getElementById('agent-toggle-btn');
+if (agentToggleBtn) {
+    agentToggleBtn.addEventListener('click', () => {
+        agentToggleBtn.classList.toggle('active');
+        const isActive = agentToggleBtn.classList.contains('active');
+        showToast(isActive ? "Agent Mode enabled" : "Agent Mode disabled", "info");
+    });
+}
+
+function setupAutocomplete() {
+    if (!queryInput || !autocompleteDropdown) return;
+    
+    queryInput.addEventListener('input', (e) => {
+        const text = queryInput.value;
+        const cursorPosition = queryInput.selectionStart;
+        
+        // Find the word preceding the cursor
+        const textBeforeCursor = text.slice(0, cursorPosition);
+        const lastWordStart = textBeforeCursor.lastIndexOf(' ');
+        const lastWord = lastWordStart === -1 ? textBeforeCursor : textBeforeCursor.slice(lastWordStart + 1);
+        
+        if (lastWord.startsWith('/') || lastWord.startsWith('@')) {
+            triggerChar = lastWord[0];
+            triggerIndex = lastWordStart === -1 ? 0 : lastWordStart + 1;
+            const query = lastWord.slice(1).toLowerCase();
+            
+            showAutocomplete(triggerChar, query);
+        } else {
+            hideAutocomplete();
+        }
+    });
+    
+    queryInput.addEventListener('keydown', (e) => {
+        if (autocompleteDropdown.style.display === 'none') return;
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = (selectedIndex + 1) % filteredItems.length;
+            updateSelectedAutocomplete();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = (selectedIndex - 1 + filteredItems.length) % filteredItems.length;
+            updateSelectedAutocomplete();
+        } else if (e.key === 'Enter') {
+            if (selectedIndex >= 0 && selectedIndex < filteredItems.length) {
+                e.preventDefault();
+                selectAutocompleteItem(filteredItems[selectedIndex]);
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            hideAutocomplete();
+        }
+    });
+    
+    // Hide when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!autocompleteDropdown.contains(e.target) && e.target !== queryInput) {
+            hideAutocomplete();
+        }
+    });
+}
+
+function showAutocomplete(char, query) {
+    autocompleteDropdown.innerHTML = '';
+    selectedIndex = -1;
+    
+    if (char === '/') {
+        // Filter skills
+        filteredItems = state.skills.filter(s => s.name.toLowerCase().includes(query)).map(s => ({
+            name: s.name,
+            type: 'skill',
+            value: s.name + ': ' + s.description
+        }));
+    } else if (char === '@') {
+        // Filter documents
+        filteredItems = state.documents.filter(d => d.name && d.name.toLowerCase().includes(query)).map(d => ({
+            name: d.name,
+            type: 'doc',
+            value: d.name
+        }));
+    }
+    
+    if (filteredItems.length === 0) {
+        hideAutocomplete();
+        return;
+    }
+    
+    filteredItems.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'autocomplete-item';
+        div.innerHTML = `
+            <span class="item-type">${item.type}</span>
+            <span class="item-name">${item.name}</span>
+        `;
+        div.addEventListener('click', () => {
+            selectAutocompleteItem(item);
+        });
+        autocompleteDropdown.appendChild(div);
+    });
+    
+    autocompleteDropdown.style.display = 'flex';
+}
+
+function updateSelectedAutocomplete() {
+    const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
+    items.forEach((item, index) => {
+        if (index === selectedIndex) {
+            item.classList.add('selected');
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+}
+
+function selectAutocompleteItem(item) {
+    const text = queryInput.value;
+    const cursorPosition = queryInput.selectionStart;
+    
+    const beforeTrigger = text.slice(0, triggerIndex);
+    const afterCursor = text.slice(cursorPosition);
+    
+    // Insert autocomplete value
+    const insertion = triggerChar + item.name;
+    queryInput.value = beforeTrigger + insertion + ' ' + afterCursor;
+    
+    // Position cursor after the completed term
+    const newCursorPos = triggerIndex + insertion.length + 1;
+    queryInput.setSelectionRange(newCursorPos, newCursorPos);
+    
+    hideAutocomplete();
+    validateInputs();
+    queryInput.focus();
+}
+
+function hideAutocomplete() {
+    autocompleteDropdown.style.display = 'none';
+    filteredItems = [];
+    selectedIndex = -1;
+}
+
+// --- Split-Screen Document Previewer Logic ---
+async function openDocumentPreview(docId, docName, highlightChunkId = null) {
+    const previewPane = document.getElementById('preview-pane');
+    const titleEl = document.getElementById('preview-doc-title');
+    const bodyEl = document.getElementById('preview-body');
+    
+    if (!previewPane || !titleEl || !bodyEl) return;
+    
+    titleEl.textContent = docName;
+    previewPane.style.display = 'flex';
+    
+    // Track current loaded document ID to prevent duplicate fetches
+    const isSameDoc = (previewPane.dataset.currentDocId === docId);
+    previewPane.dataset.currentDocId = docId;
+    
+    const fetchAndRender = async () => {
+        const resp = await fetch(`/api/documents/${docId}/chunks`);
+        const data = await resp.json();
+        if (data.status === 'success') {
+            bodyEl.innerHTML = '';
+            data.chunks.forEach(chunk => {
+                const chunkDiv = document.createElement('div');
+                chunkDiv.className = 'preview-chunk';
+                chunkDiv.id = `preview-chunk-${chunk.id}`;
+                chunkDiv.innerHTML = `
+                    <div class="chunk-header">
+                        <span>Chunk #${chunk.idx + 1}</span>
+                        <span>ID: ${chunk.id.substring(0, 8)}</span>
+                    </div>
+                    <div class="chunk-text">${escapeHtml(chunk.text)}</div>
+                `;
+                bodyEl.appendChild(chunkDiv);
+            });
+        } else {
+            bodyEl.innerHTML = `<div style="color:var(--red-alert); padding:20px;">Failed to load document: ${data.message}</div>`;
+        }
+    };
+    
+    if (!isSameDoc) {
+        bodyEl.innerHTML = '<div style="text-align:center; padding:20px;">Loading document text...</div>';
+        await fetchAndRender();
+    }
+    
+    // Remove previous highlights
+    bodyEl.querySelectorAll('.preview-chunk').forEach(el => el.classList.remove('highlighted'));
+    
+    if (highlightChunkId) {
+        const chunkEl = document.getElementById(`preview-chunk-${highlightChunkId}`);
+        if (chunkEl) {
+            chunkEl.classList.add('highlighted');
+            setTimeout(() => {
+                chunkEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 120);
+        }
+    }
+}
+
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// Bind preview close button
+const previewCloseBtn = document.getElementById('preview-close-btn');
+if (previewCloseBtn) {
+    previewCloseBtn.addEventListener('click', () => {
+        document.getElementById('preview-pane').style.display = 'none';
+        const previewPane = document.getElementById('preview-pane');
+        delete previewPane.dataset.currentDocId;
+    });
+}
+

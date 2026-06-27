@@ -82,6 +82,39 @@ class Database:
                     embedding TEXT NOT NULL
                 )
             """)
+            # Seed default skills if empty
+            cursor.execute("SELECT COUNT(*) FROM skills")
+            if cursor.fetchone()[0] == 0:
+                import uuid
+                from datetime import datetime
+                default_skills = [
+                    {
+                        "name": "refactor-code",
+                        "description": "Refactor and optimize code for readability, performance, and best practices.",
+                        "content": "When the user asks to refactor or optimize code, review the syntax, identify performance bottlenecks or bad practices, and output a clean, refactored version with explanations."
+                    },
+                    {
+                        "name": "summarize-text",
+                        "description": "Generate concise, structured summaries from long documents or text chunks.",
+                        "content": "When requested to summarize, read the context carefully and extract the core findings, key metrics, and actionable items, formatting them into clear sections."
+                    },
+                    {
+                        "name": "debug-assistant",
+                        "description": "Identify bugs, trace syntax errors, and supply complete working bugfixes.",
+                        "content": "When debugging, explain why the error happened, and provide the exact replacement code block along with recommendations to prevent it in the future."
+                    },
+                    {
+                        "name": "latex-converter",
+                        "description": "Translate standard math equations and text descriptions into LaTeX syntax.",
+                        "content": "When translating formulas to LaTeX, ensure proper formatting using $$ for block equations and $ for inline equations."
+                    }
+                ]
+                dummy_emb = json.dumps([0.0] * 1536)
+                for ds in default_skills:
+                    cursor.execute(
+                        "INSERT INTO skills (id, name, description, content, created_at, embedding) VALUES (?, ?, ?, ?, ?, ?)",
+                        (str(uuid.uuid4()), ds["name"], ds["description"], ds["content"], datetime.now().strftime("%Y-%m-%d %H:%M:%S"), dummy_emb)
+                    )
             
             conn.commit()
 
@@ -126,6 +159,16 @@ class Database:
             cursor.execute("DELETE FROM chunks WHERE doc_id = ?", (doc_id,))
             cursor.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
             conn.commit()
+
+    def get_document_chunks(self, doc_id: str) -> List[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, idx, text FROM chunks WHERE doc_id = ? ORDER BY idx ASC",
+                (doc_id,)
+            )
+            rows = cursor.fetchall()
+            return [{"id": r[0], "idx": r[1], "text": r[2]} for r in rows]
 
     def get_all_chunks(self) -> List[Dict[str, Any]]:
         with self._get_connection() as conn:
