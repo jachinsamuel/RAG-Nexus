@@ -1,0 +1,7 @@
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+google-generativeai>=0.5.0
+httpx>=0.24.0
+numpy>=1.20.0
+pypdf>=3.0.0
+python-multipart>=0.0.6

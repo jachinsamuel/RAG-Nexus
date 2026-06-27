@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Cognitive Engine</title>
+    <!-- Google Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css">
+    <link rel="stylesheet" href="style.css?v=2.0">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Sidebar: Document Ingestion & Evolving Memory -->
+        <aside class="sidebar">
+            <div class="brand">
+                <h2>Nexus</h2>
+            </div>
+
+            <button class="new-chat-btn" id="new-chat-btn">+ New Chat</button>
+
+            <!-- Navigation Tabs -->
+            <div class="sidebar-tabs">
+                <button class="tab-btn active" data-tab="catalog-pane">Catalogue</button>
+                <button class="tab-btn" data-tab="memory-pane">Memory</button>
+                <button class="tab-btn" data-tab="skills-pane">Skills</button>
+            </div>
+
+            <!-- Tab Panes -->
+            <div class="tab-content-container">
+                
+                <!-- Pane 1: Document Catalogue -->
+                <div class="tab-pane active" id="catalog-pane">
+                    <div class="dropzone" id="dropzone">
+                        <input type="file" id="file-input" accept=".pdf,.txt,.md" style="display: none;">
+                        <div class="dropzone-content">
+                            <span class="upload-icon">↑</span>
+                            <p>Drag & Drop files</p>
+                            <span>Supports PDF, TXT, MD</span>
+                        </div>
+                    </div>
+                    
+                    <div class="doc-list-container">
+                        <div class="section-sub-header">
+                            <h4>Knowledge Catalog</h4>
+                            <span id="doc-count">0 files</span>
+                        </div>
+                        <ul class="doc-list" id="doc-list">
+                            <!-- Dynamic Document Cards -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Pane 2: Personal Profile Memory -->
+                <div class="tab-pane" id="memory-pane" style="display: none;">
+                    <div class="manual-form">
+                        <h4>Add Memory Fact</h4>
+                        <div class="manual-form-group">
+                            <input type="text" id="manual-fact-input" placeholder="e.g. User works on Windows 11" autocomplete="off">
+                            <button id="add-fact-btn">Add</button>
+                        </div>
+                    </div>
+                    
+                    <div class="memory-list-container">
+                        <div class="section-sub-header">
+                            <h4>Extracted Facts</h4>
+                        </div>
+                        <ul class="memory-list" id="memory-list">
+                            <!-- Dynamic Fact List -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Pane 3: Learned Skills Library -->
+                <div class="tab-pane" id="skills-pane" style="display: none;">
+                    <div class="manual-form">
+                        <h4>Create Custom Skill</h4>
+                        <div class="manual-form-group">
+                            <input type="text" id="manual-skill-name" placeholder="Skill Name (e.g. OAuth Setup)" autocomplete="off">
+                            <input type="text" id="manual-skill-desc" placeholder="Short description..." autocomplete="off">
+                            <textarea id="manual-skill-content" placeholder="Paste custom code or rules here..." rows="3"></textarea>
+                            <button id="add-skill-btn">Save Skill</button>
+                        </div>
+                    </div>
+                    
+                    <div class="skills-list-container">
+                        <div class="section-sub-header">
+                            <h4>Skills Library</h4>
+                        </div>
+                        <ul class="skills-list" id="skills-list">
+                            <!-- Dynamic Skills Cards -->
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Conversations History Panel -->
+            <div class="conv-list-container">
+                <div class="section-sub-header">
+                    <h4>Dialogue History</h4>
+                </div>
+                <ul class="conv-list" id="conv-list">
+                    <!-- Dynamic Past Conversations -->
+                </ul>
+            </div>
+            
+        </aside>
+        
+        <!-- Main Chat Area -->
+        <main class="chat-area">
+            <header class="chat-header">
+                <div class="header-status">
+                    <div class="status-indicator online"></div>
+                    <span id="current-model-display">Gemini 1.5 Flash</span>
+                    <span class="active-chat-title" id="active-chat-title">New Conversation</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="export-btn" id="export-btn" title="Export current chat to Markdown">&#x2913; Export Chat</button>
+                    <button class="settings-toggle" id="settings-btn">&#x2699;&#xFE0E; Settings</button>
+                </div>
+            </header>
+            
+            <div class="chat-history" id="chat-history">
+                <!-- Chat messages loaded here -->
+            </div>
+            
+            <footer class="chat-footer">
+                <form class="chat-input-form" id="chat-form">
+                    <button type="button" id="mic-btn" class="mic-btn" title="Voice Input">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                    </button>
+                    <input type="text" id="query-input" placeholder="Ask questions or share preferences..." autocomplete="off" required>
+                    <button type="submit" id="send-btn" disabled>Send</button>
+                </form>
+            </footer>
+        </main>
+        
+        <!-- Drawer: Context / Sources Viewer (Slides in from right) -->
+        <div class="drawer" id="context-drawer">
+            <div class="drawer-header">
+                <h3>Retrieved Citations</h3>
+                <button class="drawer-close" id="drawer-close-btn">&times;</button>
+            </div>
+            <div class="drawer-content" id="drawer-content">
+                <!-- Retrieved Chunk List -->
+            </div>
+        </div>
+
+        <!-- Panel: Settings Drawer -->
+        <div class="drawer" id="settings-drawer">
+            <div class="drawer-header">
+                <h3>RAG Configurations</h3>
+                <button class="drawer-close" id="settings-close-btn">&times;</button>
+            </div>
+            <div class="drawer-content">
+                <div class="settings-group">
+                    <label>Provider</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="provider" value="gemini" checked> Gemini API
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="provider" value="openai"> OpenAI API
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="provider" value="claude"> Claude API
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="provider" value="ollama"> Ollama (Local)
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="provider" value="custom"> Custom API
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Gemini Options -->
+                <div class="provider-options" id="gemini-options">
+                    <div class="settings-group">
+                        <label for="gemini-key">Gemini API Key</label>
+                        <input type="password" id="gemini-key" placeholder="AIzaSy...">
+                    </div>
+                    <div class="settings-group">
+                        <label for="gemini-model">Generative Model</label>
+                        <select id="gemini-model">
+                            <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Exp)</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label for="gemini-embed">Embedding Model</label>
+                        <select id="gemini-embed">
+                            <option value="models/text-embedding-004" selected>text-embedding-004</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- OpenAI Options -->
+                <div class="provider-options" id="openai-options" style="display: none;">
+                    <div class="settings-group">
+                        <label for="openai-key">OpenAI API Key</label>
+                        <input type="password" id="openai-key" placeholder="sk-proj-...">
+                    </div>
+                    <div class="settings-group">
+                        <label for="openai-model">Generative Model</label>
+                        <select id="openai-model">
+                            <option value="gpt-4o" selected>gpt-4o</option>
+                            <option value="gpt-4o-mini">gpt-4o-mini</option>
+                            <option value="gpt-4-turbo">gpt-4-turbo</option>
+                            <option value="o1-mini">o1-mini</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label for="openai-embed">Embedding Model</label>
+                        <select id="openai-embed">
+                            <option value="text-embedding-3-small" selected>text-embedding-3-small</option>
+                            <option value="text-embedding-3-large">text-embedding-3-large</option>
+                            <option value="text-embedding-ada-002">text-embedding-ada-002</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Claude Options -->
+                <div class="provider-options" id="claude-options" style="display: none;">
+                    <div class="settings-group">
+                        <label for="claude-key">Anthropic API Key</label>
+                        <input type="password" id="claude-key" placeholder="sk-ant-...">
+                    </div>
+                    <div class="settings-group">
+                        <label for="claude-model">Generative Model</label>
+                        <select id="claude-model">
+                            <option value="claude-3-5-sonnet-latest" selected>Claude 3.5 Sonnet</option>
+                            <option value="claude-3-5-haiku-latest">Claude 3.5 Haiku</option>
+                            <option value="claude-3-opus-latest">Claude 3 Opus</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label for="claude-embed-provider">Fallback Embedding Provider</label>
+                        <select id="claude-embed-provider">
+                            <option value="gemini" selected>Gemini API</option>
+                            <option value="openai">OpenAI API</option>
+                            <option value="ollama">Ollama (Local)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Ollama Options -->
+                <div class="provider-options" id="ollama-options" style="display: none;">
+                    <div class="settings-group">
+                        <label for="ollama-url">Ollama Base URL</label>
+                        <input type="text" id="ollama-url" value="http://localhost:11434">
+                    </div>
+                    <div class="settings-group">
+                        <label for="ollama-model">Generative Model</label>
+                        <input type="text" id="ollama-model" value="llama3" placeholder="e.g. llama3, phi3">
+                    </div>
+                    <div class="settings-group">
+                        <label for="ollama-embed">Embedding Model</label>
+                        <input type="text" id="ollama-embed" value="nomic-embed-text" placeholder="e.g. nomic-embed-text">
+                    </div>
+                </div>
+
+                <!-- Custom Options -->
+                <div class="provider-options" id="custom-options" style="display: none;">
+                    <div class="settings-group">
+                        <label for="custom-url">Base URL</label>
+                        <input type="text" id="custom-url" placeholder="https://integrate.api.nvidia.com/v1">
+                    </div>
+                    <div class="settings-group">
+                        <label for="custom-key">API Key (Optional)</label>
+                        <input type="password" id="custom-key" placeholder="nvapi-...">
+                    </div>
+                    <div class="settings-group">
+                        <label for="custom-model">Generative Model</label>
+                        <input type="text" id="custom-model" placeholder="e.g. meta/llama-3.1-70b-instruct">
+                    </div>
+                    <div class="settings-group">
+                        <label for="custom-embed">Embedding Model</label>
+                        <input type="text" id="custom-embed" placeholder="e.g. nvidia/embeddings-nv-embed-qa-4">
+                    </div>
+                </div>
+
+                <hr class="divider">
+
+                <!-- Chunk Options -->
+                <div class="settings-group">
+                    <label>Text Chunk Size (chars)</label>
+                    <div class="range-value-container">
+                        <input type="range" id="chunk-size" min="100" max="2000" step="50" value="500">
+                        <span id="chunk-size-val">500</span>
+                    </div>
+                </div>
+                <div class="settings-group">
+                    <label>Chunk Overlap (chars)</label>
+                    <div class="range-value-container">
+                        <input type="range" id="chunk-overlap" min="0" max="500" step="25" value="100">
+                        <span id="chunk-overlap-val">100</span>
+                    </div>
+                </div>
+
+                <!-- Retrieval Options -->
+                <div class="settings-group">
+                    <label>Top Contexts (K)</label>
+                    <div class="range-value-container">
+                        <input type="range" id="top-k" min="1" max="10" step="1" value="4">
+                        <span id="top-k-val">4</span>
+                    </div>
+                </div>
+                <div class="settings-group">
+                    <label>Relevance Threshold</label>
+                    <div class="range-value-container">
+                        <input type="range" id="threshold" min="0.0" max="1.0" step="0.05" value="0.30">
+                        <span id="threshold-val">0.30</span>
+                    </div>
+                </div>
+
+                <div class="settings-group" style="flex-direction: row; align-items: center; gap: 10px; margin: 10px 0;">
+                    <input type="checkbox" id="web-search-toggle" style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--cyan-color);">
+                    <label for="web-search-toggle" style="cursor: pointer; margin-bottom: 0;">Enable Web Search</label>
+                </div>
+
+                <div class="settings-group">
+                    <label for="system-prompt">System Prompt Customization</label>
+                    <textarea id="system-prompt" rows="4" placeholder="Enter system instructions..."></textarea>
+                </div>
+
+                <button class="save-settings-btn" id="save-settings-btn">Save Configurations</button>
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- Custom Modal Dialogs Overlay -->
+    <div class="modal-overlay" id="confirm-modal" style="display: none;">
+        <div class="modal-card">
+            <h3 id="confirm-title">Confirm Action</h3>
+            <p id="confirm-message">Are you sure you want to proceed?</p>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="confirm-cancel-btn">Cancel</button>
+                <button class="modal-btn confirm" id="confirm-ok-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Prompt Dialog Overlay -->
+    <div class="modal-overlay" id="prompt-modal" style="display: none;">
+        <div class="modal-card">
+            <h3 id="prompt-title">Enter Title</h3>
+            <div class="settings-group" style="margin: 10px 0 15px 0;">
+                <input type="text" id="prompt-input" autocomplete="off" style="width: 100%; text-align: left;">
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="prompt-cancel-btn">Cancel</button>
+                <button class="modal-btn confirm" id="prompt-ok-btn" style="background: var(--cyan-color); color: #000000;">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Toasts Container -->
+    <div class="toast-container" id="toast-container"></div>
+    
+    <!-- Prism.js Syntax Highlighting & Line Numbers -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
+
+    <!-- KaTeX Math Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/contrib/auto-render.min.js"></script>
+
+    <!-- Active Script bindings for frontend control panel -->
+    <script src="app.js?v=2.0"></script>
+</body>
+</html>
