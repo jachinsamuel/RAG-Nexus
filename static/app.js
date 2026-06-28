@@ -23,7 +23,12 @@ const state = {
         topK: 4,
         threshold: 0.3,
         systemPrompt: '',
-        webSearch: false
+        webSearch: false,
+        workspacePath: '',
+        workspaceHistory: [],
+        retrievalStrategy: 'hybrid',
+        theme: 'light',
+        designStyle: 'minimalist'
     },
     documents: [],
     messages: [],
@@ -31,7 +36,11 @@ const state = {
     conversations: [],
     activeConversationId: null,
     profileMemories: [],
-    skills: []
+    skills: [],
+    workspaceFiles: [],
+    generatingConversations: {},
+    activeStreams: {},
+    selectedAttachments: []
 };
 
 // DOM Elements
@@ -104,6 +113,10 @@ const customUrlInput = document.getElementById('custom-url');
 const customKeyInput = document.getElementById('custom-key');
 const customModelInput = document.getElementById('custom-model');
 const customEmbedInput = document.getElementById('custom-embed');
+
+// Workspace DOM Elements
+const workspacePathInput = document.getElementById('workspace-path');
+const previewSaveBtn = document.getElementById('preview-save-btn');
 
 const chunkSizeSlider = document.getElementById('chunk-size');
 const chunkSizeVal = document.getElementById('chunk-size-val');
@@ -237,6 +250,10 @@ function initSettings() {
             console.error("Could not parse saved settings", e);
         }
     }
+    state.settings.workspaceHistory = state.settings.workspaceHistory || [];
+    if (state.settings.workspacePath && !state.settings.workspaceHistory.includes(state.settings.workspacePath)) {
+        state.settings.workspaceHistory.push(state.settings.workspacePath);
+    }
     
     // Bind to DOM
     document.querySelectorAll('input[name="provider"]').forEach(radio => {
@@ -259,44 +276,67 @@ function initSettings() {
         }
     });
     
-    geminiKeyInput.value = state.settings.apiKey || '';
-    geminiModelSelect.value = state.settings.geminiModel || 'gemini-1.5-flash';
-    geminiEmbedSelect.value = state.settings.geminiEmbed || 'models/text-embedding-004';
+    if (geminiKeyInput) geminiKeyInput.value = state.settings.apiKey || '';
+    if (geminiModelSelect) geminiModelSelect.value = state.settings.geminiModel || 'gemini-1.5-flash';
+    if (geminiEmbedSelect) geminiEmbedSelect.value = state.settings.geminiEmbed || 'models/text-embedding-004';
     
-    openaiKeyInput.value = state.settings.openaiKey || '';
-    openaiModelSelect.value = state.settings.openaiModel || 'gpt-4o';
-    openaiEmbedSelect.value = state.settings.openaiEmbed || 'text-embedding-3-small';
+    if (openaiKeyInput) openaiKeyInput.value = state.settings.openaiKey || '';
+    if (openaiModelSelect) openaiModelSelect.value = state.settings.openaiModel || 'gpt-4o';
+    if (openaiEmbedSelect) openaiEmbedSelect.value = state.settings.openaiEmbed || 'text-embedding-3-small';
     
-    claudeKeyInput.value = state.settings.claudeKey || '';
-    claudeModelSelect.value = state.settings.claudeModel || 'claude-3-5-sonnet-latest';
-    claudeEmbedProviderSelect.value = state.settings.claudeEmbedProvider || 'gemini';
+    if (claudeKeyInput) claudeKeyInput.value = state.settings.claudeKey || '';
+    if (claudeModelSelect) claudeModelSelect.value = state.settings.claudeModel || 'claude-3-5-sonnet-latest';
+    if (claudeEmbedProviderSelect) claudeEmbedProviderSelect.value = state.settings.claudeEmbedProvider || 'gemini';
     
-    ollamaUrlInput.value = state.settings.ollamaUrl || 'http://localhost:11434';
-    ollamaModelInput.value = state.settings.ollamaModel || 'llama3';
-    ollamaEmbedInput.value = state.settings.ollamaEmbed || 'nomic-embed-text';
+    if (ollamaUrlInput) ollamaUrlInput.value = state.settings.ollamaUrl || 'http://localhost:11434';
+    if (ollamaModelInput) ollamaModelInput.value = state.settings.ollamaModel || 'llama3';
+    if (ollamaEmbedInput) ollamaEmbedInput.value = state.settings.ollamaEmbed || 'nomic-embed-text';
     
-    customUrlInput.value = state.settings.customUrl || '';
-    customKeyInput.value = state.settings.customKey || '';
-    customModelInput.value = state.settings.customModel || '';
-    customEmbedInput.value = state.settings.customEmbed || '';
+    if (customUrlInput) customUrlInput.value = state.settings.customUrl || '';
+    if (customKeyInput) customKeyInput.value = state.settings.customKey || '';
+    if (customModelInput) customModelInput.value = state.settings.customModel || '';
+    if (customEmbedInput) customEmbedInput.value = state.settings.customEmbed || '';
     
-    chunkSizeSlider.value = state.settings.chunkSize;
-    chunkSizeVal.textContent = state.settings.chunkSize;
-    chunkOverlapSlider.value = state.settings.chunkOverlap;
-    chunkOverlapVal.textContent = state.settings.chunkOverlap;
+    if (chunkSizeSlider) {
+        chunkSizeSlider.value = state.settings.chunkSize;
+        chunkSizeVal.textContent = state.settings.chunkSize;
+    }
+    if (chunkOverlapSlider) {
+        chunkOverlapSlider.value = state.settings.chunkOverlap;
+        chunkOverlapVal.textContent = state.settings.chunkOverlap;
+    }
     
-    topKSlider.value = state.settings.topK;
-    topKVal.textContent = state.settings.topK;
-    thresholdSlider.value = state.settings.threshold;
-    thresholdVal.textContent = Number(state.settings.threshold).toFixed(2);
-    systemPromptInput.value = state.settings.systemPrompt;
-    webSearchToggle.checked = !!state.settings.webSearch;
+    if (topKSlider) {
+        topKSlider.value = state.settings.topK;
+        topKVal.textContent = state.settings.topK;
+    }
+    if (thresholdSlider) {
+        thresholdSlider.value = state.settings.threshold;
+        thresholdVal.textContent = Number(state.settings.threshold).toFixed(2);
+    }
+    if (systemPromptInput) systemPromptInput.value = state.settings.systemPrompt;
+    if (webSearchToggle) webSearchToggle.checked = !!state.settings.webSearch;
+    if (workspacePathInput) workspacePathInput.value = state.settings.workspacePath || '';
+    
+    const retrievalStrategySelect = document.getElementById('retrieval-strategy');
+    if (retrievalStrategySelect) retrievalStrategySelect.value = state.settings.retrievalStrategy || 'hybrid';
+    
+    const themeModeSelect = document.getElementById('theme-mode-select');
+    if (themeModeSelect) themeModeSelect.value = state.settings.theme || 'dark';
+    
+    applyAppearance(state.settings.theme || 'dark');
+    
+    // Configure workspace on load if path exists
+    if (state.settings.workspacePath) {
+        configureBackendWorkspace(state.settings.workspacePath);
+    }
     
     updateHeaderDisplay();
     validateInputs();
 }
 
 function updateHeaderDisplay() {
+    if (!currentModelDisplay) return;
     if (state.settings.provider === 'gemini') {
         currentModelDisplay.textContent = `Gemini (${state.settings.geminiModel})`;
     } else if (state.settings.provider === 'openai') {
@@ -312,35 +352,50 @@ function updateHeaderDisplay() {
 
 function saveSettings() {
     state.settings.provider = document.querySelector('input[name="provider"]:checked').value;
-    state.settings.apiKey = geminiKeyInput.value.trim();
-    state.settings.geminiModel = geminiModelSelect.value;
-    state.settings.geminiEmbed = geminiEmbedSelect.value;
+    if (geminiKeyInput) state.settings.apiKey = geminiKeyInput.value.trim();
+    if (geminiModelSelect) state.settings.geminiModel = geminiModelSelect.value;
+    if (geminiEmbedSelect) state.settings.geminiEmbed = geminiEmbedSelect.value;
     
-    state.settings.openaiKey = openaiKeyInput.value.trim();
-    state.settings.openaiModel = openaiModelSelect.value;
-    state.settings.openaiEmbed = openaiEmbedSelect.value;
+    if (openaiKeyInput) state.settings.openaiKey = openaiKeyInput.value.trim();
+    if (openaiModelSelect) state.settings.openaiModel = openaiModelSelect.value;
+    if (openaiEmbedSelect) state.settings.openaiEmbed = openaiEmbedSelect.value;
     
-    state.settings.claudeKey = claudeKeyInput.value.trim();
-    state.settings.claudeModel = claudeModelSelect.value;
-    state.settings.claudeEmbedProvider = claudeEmbedProviderSelect.value;
+    if (claudeKeyInput) state.settings.claudeKey = claudeKeyInput.value.trim();
+    if (claudeModelSelect) state.settings.claudeModel = claudeModelSelect.value;
+    if (claudeEmbedProviderSelect) state.settings.claudeEmbedProvider = claudeEmbedProviderSelect.value;
     
-    state.settings.ollamaUrl = ollamaUrlInput.value.trim();
-    state.settings.ollamaModel = ollamaModelInput.value.trim();
-    state.settings.ollamaEmbed = ollamaEmbedInput.value.trim();
+    if (ollamaUrlInput) state.settings.ollamaUrl = ollamaUrlInput.value.trim();
+    if (ollamaModelInput) state.settings.ollamaModel = ollamaModelInput.value.trim();
+    if (ollamaEmbedInput) state.settings.ollamaEmbed = ollamaEmbedInput.value.trim();
     
-    state.settings.customUrl = customUrlInput.value.trim();
-    state.settings.customKey = customKeyInput.value.trim();
-    state.settings.customModel = customModelInput.value.trim();
-    state.settings.customEmbed = customEmbedInput.value.trim();
+    if (customUrlInput) state.settings.customUrl = customUrlInput.value.trim();
+    if (customKeyInput) state.settings.customKey = customKeyInput.value.trim();
+    if (customModelInput) state.settings.customModel = customModelInput.value.trim();
+    if (customEmbedInput) state.settings.customEmbed = customEmbedInput.value.trim();
     
-    state.settings.chunkSize = parseInt(chunkSizeSlider.value);
-    state.settings.chunkOverlap = parseInt(chunkOverlapSlider.value);
-    state.settings.topK = parseInt(topKSlider.value);
-    state.settings.threshold = parseFloat(thresholdSlider.value);
-    state.settings.systemPrompt = systemPromptInput.value.trim();
-    state.settings.webSearch = webSearchToggle.checked;
+    if (chunkSizeSlider) state.settings.chunkSize = parseInt(chunkSizeSlider.value);
+    if (chunkOverlapSlider) state.settings.chunkOverlap = parseInt(chunkOverlapSlider.value);
+    if (topKSlider) state.settings.topK = parseInt(topKSlider.value);
+    if (thresholdSlider) state.settings.threshold = parseFloat(thresholdSlider.value);
+    if (systemPromptInput) state.settings.systemPrompt = systemPromptInput.value.trim();
+    if (webSearchToggle) state.settings.webSearch = webSearchToggle.checked;
+    
+    const retrievalStrategySelect = document.getElementById('retrieval-strategy');
+    if (retrievalStrategySelect) state.settings.retrievalStrategy = retrievalStrategySelect.value;
+    
+    const themeModeSelect = document.getElementById('theme-mode-select');
+    if (themeModeSelect) state.settings.theme = themeModeSelect.value;
+    
+    applyAppearance(state.settings.theme);
+    
+    const oldPath = state.settings.workspacePath;
+    if (workspacePathInput) state.settings.workspacePath = workspacePathInput.value.trim();
     
     localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+    
+    // Call configuration endpoint to set workspace root
+    configureBackendWorkspace(state.settings.workspacePath, oldPath);
+    
     updateHeaderDisplay();
     validateInputs();
     closeDrawer(settingsDrawer);
@@ -350,16 +405,38 @@ function saveSettings() {
 // Drawer management
 function openDrawer(drawer) {
     drawer.classList.add('open');
+    if (drawer === settingsDrawer) {
+        document.body.classList.add('settings-open');
+        setTimeout(() => {
+            const activeBtn = document.querySelector('.drawer-tab-btn.active');
+            if (activeBtn && window.updateTabIndicator) window.updateTabIndicator(activeBtn);
+        }, 50);
+    }
 }
 
 function closeDrawer(drawer) {
     drawer.classList.remove('open');
+    if (drawer === settingsDrawer) {
+        document.body.classList.remove('settings-open');
+    }
 }
 
-settingsBtn.addEventListener('click', () => openDrawer(settingsDrawer));
+if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => openDrawer(settingsDrawer));
+}
 settingsCloseBtn.addEventListener('click', () => closeDrawer(settingsDrawer));
 drawerCloseBtn.addEventListener('click', () => closeDrawer(contextDrawer));
 saveSettingsBtn.addEventListener('click', saveSettings);
+
+// Close settings modal when clicking outside of it (backdrop click)
+window.addEventListener('click', (e) => {
+    if (document.body.classList.contains('settings-open')) {
+        const settingsFooterBtn = document.getElementById('settings-footer-btn');
+        if (settingsDrawer && !settingsDrawer.contains(e.target) && settingsFooterBtn && !settingsFooterBtn.contains(e.target)) {
+            closeDrawer(settingsDrawer);
+        }
+    }
+});
 
 // Scan local Ollama models
 const scanOllamaBtn = document.getElementById('scan-ollama-btn');
@@ -674,6 +751,8 @@ async function activateConversation(id, title) {
     document.querySelectorAll('.conv-card').forEach(card => card.classList.remove('active'));
     renderConversationsList();
     
+    updateQueryInputState();
+    
     try {
         const res = await fetch(`/api/conversations/${id}/messages`);
         const data = await res.json();
@@ -685,8 +764,31 @@ async function activateConversation(id, title) {
         } else {
             state.messages.forEach(m => appendMessage(m.role, m.content));
         }
+        
+        // If there's an active stream running for this conversation, restore its UI!
+        if (state.activeStreams[id]) {
+            const stream = state.activeStreams[id];
+            const assistantBubble = appendMessage('assistant', stream.assistantReply || 'Reflecting & gathering memory context...');
+            stream.assistantContentDiv = assistantBubble.querySelector('.message-content');
+            stream.assistantBubble = assistantBubble;
+            if (stream.assistantReply) {
+                stream.assistantContentDiv.innerHTML = parseMarkdown(stream.assistantReply);
+            }
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
     } catch (err) {
         console.error(err);
+    }
+}
+
+function updateQueryInputState() {
+    const isGen = !!state.generatingConversations[state.activeConversationId];
+    queryInput.disabled = isGen;
+    sendBtn.disabled = isGen;
+    if (isGen) {
+        queryInput.placeholder = "Agent is responding...";
+    } else {
+        queryInput.placeholder = "Ask Nexus anything... (use /file to reference files, @ for documents)";
     }
 }
 
@@ -1077,6 +1179,7 @@ function parseMarkdown(text) {
                     <button class="code-action-btn wrap-btn" onclick="toggleWordWrap(this)">Wrap</button>
                     <button class="code-action-btn copy-btn" onclick="copyToClipboard(this)">Copy</button>
                     <button class="code-action-btn download-btn" onclick="downloadCode(this, '${cleanLang}')">Download</button>
+                    <button class="code-action-btn save-ws-btn" onclick="saveToWorkspaceBlock(this, '${cleanLang}')">Save to WS</button>
                 </div>
             </div>
             <pre class="language-${cleanLang}"><code class="language-${cleanLang}">${code.trim()}</code></pre>
@@ -1250,11 +1353,18 @@ function appendMessage(role, content, sources = null) {
 
 queryInput.addEventListener('input', () => {
     validateInputs();
+    updateTokenGauge();
 });
 
 // --- Chat Form Handler & Streaming API Integration ---
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    
+    // Check if this conversation is already generating
+    if (state.generatingConversations[state.activeConversationId]) {
+        return;
+    }
+    
     const query = queryInput.value.trim();
     if (!query) return;
     
@@ -1281,8 +1391,17 @@ chatForm.addEventListener('submit', async (e) => {
         return;
     }
     
+    let queryToSubmit = query;
+    if (state.selectedAttachments && state.selectedAttachments.length > 0) {
+        const fileTags = state.selectedAttachments.map(p => `/file ${p}`).join(' ');
+        queryToSubmit = `${query}\n${fileTags}`;
+        state.selectedAttachments = [];
+        renderAttachmentChips();
+    }
+    
     queryInput.value = '';
     validateInputs();
+    updateTokenGauge();
     
     // Auto-create chat session if none is active
     if (!state.activeConversationId) {
@@ -1303,14 +1422,23 @@ chatForm.addEventListener('submit', async (e) => {
         }
     }
     
-    state.messages.push({ role: 'user', content: query });
+    const convId = state.activeConversationId;
+    state.generatingConversations[convId] = true;
+    updateQueryInputState();
+    
+    state.messages.push({ role: 'user', content: queryToSubmit });
     appendMessage('user', query);
     
     const assistantBubble = appendMessage('assistant', 'Reflecting & gathering memory context...');
     const assistantContentDiv = assistantBubble.querySelector('.message-content');
     
-    queryInput.disabled = true;
-    sendBtn.disabled = true;
+    // Initialize active stream tracking state
+    state.activeStreams[convId] = {
+        assistantReply: '',
+        assistantContentDiv: assistantContentDiv,
+        assistantBubble: assistantBubble,
+        sources: []
+    };
     
     try {
         let apiKey = '';
@@ -1351,7 +1479,7 @@ chatForm.addEventListener('submit', async (e) => {
             body: JSON.stringify({
                 messages: state.messages,
                 provider: activeProvider,
-                conversationId: state.activeConversationId,
+                conversationId: convId,
                 apiKey: apiKey,
                 ollamaUrl: ollamaUrl,
                 genModel: genModel,
@@ -1360,6 +1488,7 @@ chatForm.addEventListener('submit', async (e) => {
                 threshold: state.settings.threshold,
                 systemPrompt: state.settings.systemPrompt,
                 webSearch: !!state.settings.webSearch,
+                retrievalStrategy: state.settings.retrievalStrategy || 'hybrid',
                 agentMode: (() => {
                     const btn = document.getElementById('agent-toggle-btn');
                     return btn ? btn.classList.contains('active') : false;
@@ -1375,8 +1504,6 @@ chatForm.addEventListener('submit', async (e) => {
         const reader = res.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
-        let assistantReply = '';
-        let sources = [];
         let firstTextChunk = true;
         
         while (true) {
@@ -1392,20 +1519,25 @@ chatForm.addEventListener('submit', async (e) => {
                 const trimmed = line.trim();
                 if (!trimmed) continue;
                 
+                const stream = state.activeStreams[convId];
+                if (!stream) break;
+                
                 if (trimmed.startsWith('event: ')) {
                     currentEvent = trimmed.substring(7);
                 } else if (trimmed.startsWith('data: ')) {
                     const dataStr = trimmed.substring(6);
                     if (currentEvent === 'sources') {
-                        sources = JSON.parse(dataStr);
-                        state.currentSources = sources;
+                        stream.sources = JSON.parse(dataStr);
+                        if (convId === state.activeConversationId) {
+                            state.currentSources = stream.sources;
+                        }
                     } else if (currentEvent === 'warning') {
                         const warn = JSON.parse(dataStr);
                         showToast(warn.message, 'error');
                     } else if (currentEvent === 'agent_step') {
                         const step = JSON.parse(dataStr);
                         if (firstTextChunk) {
-                            assistantContentDiv.innerHTML = '';
+                            stream.assistantContentDiv.innerHTML = '';
                             firstTextChunk = false;
                         }
                         const stepDiv = document.createElement('div');
@@ -1420,46 +1552,61 @@ chatForm.addEventListener('submit', async (e) => {
                         stepDiv.style.color = 'var(--text-primary)';
                         stepDiv.style.borderRadius = '2px';
                         stepDiv.innerHTML = `&raquo; [${step.agent.toUpperCase()}] &nbsp;${step.message}`;
-                        assistantContentDiv.appendChild(stepDiv);
-                        chatHistory.scrollTop = chatHistory.scrollHeight;
+                        
+                        if (convId === state.activeConversationId) {
+                            stream.assistantContentDiv.appendChild(stepDiv);
+                            chatHistory.scrollTop = chatHistory.scrollHeight;
+                        }
                     } else if (currentEvent === 'text') {
                         const text = JSON.parse(dataStr);
                         if (firstTextChunk) {
-                            assistantContentDiv.innerHTML = '';
+                            stream.assistantContentDiv.innerHTML = '';
                             firstTextChunk = false;
                         }
-                        assistantReply += text;
-                        assistantContentDiv.innerHTML = parseMarkdown(assistantReply);
-                        chatHistory.scrollTop = chatHistory.scrollHeight;
+                        stream.assistantReply += text;
+                        
+                        if (convId === state.activeConversationId) {
+                            stream.assistantContentDiv.innerHTML = parseMarkdown(stream.assistantReply);
+                            chatHistory.scrollTop = chatHistory.scrollHeight;
+                        }
                     } else if (currentEvent === 'error') {
                         const err = JSON.parse(dataStr);
-                        assistantContentDiv.innerHTML = `<span style="color: var(--red-alert);">Error: ${err}</span>`;
+                        if (convId === state.activeConversationId) {
+                            stream.assistantContentDiv.innerHTML = `<span style="color: var(--red-alert);">Error: ${err}</span>`;
+                        }
                     }
                 }
             }
         }
         
-        if (window.Prism && typeof Prism.highlightAllUnder === 'function') {
-            Prism.highlightAllUnder(assistantContentDiv);
-        }
-        renderMath(assistantContentDiv);
-        
-        state.messages.push({ role: 'assistant', content: assistantReply });
-        
-        if (sources.length > 0) {
-            const sourcesContainer = document.createElement('div');
-            sourcesContainer.className = 'sources-container';
+        const stream = state.activeStreams[convId];
+        if (stream) {
+            if (convId === state.activeConversationId) {
+                if (window.Prism && typeof Prism.highlightAllUnder === 'function') {
+                    Prism.highlightAllUnder(stream.assistantContentDiv);
+                }
+                renderMath(stream.assistantContentDiv);
+                state.messages.push({ role: 'assistant', content: stream.assistantReply });
+            }
             
-            sources.forEach((src, idx) => {
-                const badge = document.createElement('span');
-                badge.className = 'source-badge';
-                badge.textContent = `[${idx + 1}] ${src.doc_name}`;
-                badge.addEventListener('click', () => {
-                    showCitationsInDrawer(sources, idx + 1);
+            if (stream.sources && stream.sources.length > 0) {
+                const sourcesContainer = document.createElement('div');
+                sourcesContainer.className = 'sources-container';
+                
+                stream.sources.forEach((src, idx) => {
+                    const badge = document.createElement('span');
+                    badge.className = 'source-badge';
+                    badge.textContent = `[${idx + 1}] ${src.doc_name}`;
+                    badge.addEventListener('click', () => {
+                        showCitationsInDrawer(stream.sources, idx + 1);
+                    });
+                    sourcesContainer.appendChild(badge);
                 });
-                sourcesContainer.appendChild(badge);
-            });
-            assistantBubble.appendChild(sourcesContainer);
+                
+                if (convId === state.activeConversationId) {
+                    stream.assistantBubble.appendChild(sourcesContainer);
+                }
+            }
         }
         
         setTimeout(async () => {
@@ -1469,11 +1616,14 @@ chatForm.addEventListener('submit', async (e) => {
         
     } catch (err) {
         console.error(err);
-        assistantContentDiv.innerHTML = `<span style="color: var(--red-alert);">Error: ${err.message}</span>`;
+        const stream = state.activeStreams[convId];
+        if (stream && convId === state.activeConversationId) {
+            stream.assistantContentDiv.innerHTML = `<span style="color: var(--red-alert);">Error: ${err.message}</span>`;
+        }
     } finally {
-        queryInput.disabled = false;
-        queryInput.focus();
-        validateInputs();
+        delete state.generatingConversations[convId];
+        delete state.activeStreams[convId];
+        updateQueryInputState();
     }
 });
 
@@ -1485,10 +1635,36 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadProfileMemories();
     await loadSkills();
     
+    // Antigravity initializers
+    renderProjectsList();
+    const chatModelSelect = document.getElementById('chat-model-select');
+    if (chatModelSelect) {
+        chatModelSelect.value = state.settings.provider;
+    }
+    
     const exportBtn = document.getElementById('export-btn');
     if (exportBtn) {
         exportBtn.addEventListener('click', () => exportConversation());
     }
+    const applyAppearanceBtn = document.getElementById('apply-appearance-btn');
+    const themeModeSelect = document.getElementById('theme-mode-select');
+    
+    if (applyAppearanceBtn) {
+        applyAppearanceBtn.addEventListener('click', () => {
+            const theme = themeModeSelect ? themeModeSelect.value : state.settings.theme;
+            applyAppearance(theme);
+            localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+            showToast("Appearance applied & saved!", "success");
+            closeDrawer();
+        });
+    }
+    
+    if (themeModeSelect) {
+        themeModeSelect.addEventListener('change', () => {
+            applyAppearance(themeModeSelect.value);
+        });
+    }
+    
     initVoiceInput();
     setupAutocomplete();
 });
@@ -1559,28 +1735,164 @@ window.toggleWordWrap = function(button) {
     }
 };
 
+window.saveToWorkspaceBlock = async function(button, lang) {
+    if (!state.settings.workspacePath) {
+        showToast("No active project workspace folder configured.", "error");
+        return;
+    }
+    const codeContainer = button.closest('.code-container');
+    const codeElement = codeContainer.querySelector('pre code');
+    const rawCode = codeElement.innerText;
+    
+    const extMap = {
+        'python': 'py', 'py': 'py', 'javascript': 'js', 'js': 'js',
+        'typescript': 'ts', 'ts': 'ts', 'html': 'html', 'css': 'css',
+        'json': 'json', 'bash': 'sh', 'sh': 'sh', 'cpp': 'cpp', 'c': 'c',
+        'rust': 'rs', 'rs': 'rs', 'go': 'go', 'java': 'java', 'sql': 'sql',
+        'yaml': 'yaml', 'yml': 'yaml', 'markdown': 'md', 'md': 'md'
+    };
+    const ext = extMap[lang.toLowerCase()] || 'txt';
+    const defaultName = `snippet_${Date.now()}.${ext}`;
+    
+    const targetPath = await showPrompt("Save Code Snippet to Workspace Folder", defaultName);
+    if (!targetPath) return;
+    
+    button.disabled = true;
+    button.textContent = 'Saving...';
+    try {
+        const resp = await fetch('/api/workspace/file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: targetPath,
+                content: rawCode
+            })
+        });
+        const data = await resp.json();
+        if (data.status === 'success') {
+            showToast(`File saved to workspace: ${targetPath}`, "success");
+            loadWorkspaceFiles();
+            button.textContent = 'Saved!';
+        } else {
+            showToast(data.detail || "Could not save file", "error");
+            button.textContent = 'Save to WS';
+        }
+    } catch (err) {
+        showToast("Error saving file: " + err.message, "error");
+        button.textContent = 'Save to WS';
+    } finally {
+        button.disabled = false;
+        setTimeout(() => {
+            button.textContent = 'Save to WS';
+        }, 2500);
+    }
+};
+
+// Appearance & Design System Helper
+function applyAppearance(themeName) {
+    state.settings.theme = themeName || 'dark';
+    
+    document.body.classList.remove('theme-light', 'theme-dark', 'dark-theme');
+    
+    if (state.settings.theme === 'dark') {
+        document.body.classList.add('theme-dark', 'dark-theme');
+    } else {
+        document.body.classList.add('theme-light');
+    }
+}
+
+function renderAttachmentChips() {
+    const container = document.getElementById('attachment-container');
+    if (!container) return;
+    container.innerHTML = '';
+    if (state.selectedAttachments.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    container.style.display = 'flex';
+    state.selectedAttachments.forEach(filePath => {
+        const parts = filePath.split(/[\\/]/);
+        const name = parts[parts.length - 1] || filePath;
+        const chip = document.createElement('div');
+        chip.className = 'attachment-chip';
+        chip.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            <span>${name}</span>
+            <span class="chip-remove" title="Remove attachment">&times;</span>
+        `;
+        chip.querySelector('.chip-remove').addEventListener('click', () => {
+            removeAttachmentChip(filePath);
+        });
+        container.appendChild(chip);
+    });
+    updateTokenGauge();
+}
+
+function addAttachmentChip(filePath) {
+    if (!state.selectedAttachments.includes(filePath)) {
+        state.selectedAttachments.push(filePath);
+        renderAttachmentChips();
+    }
+}
+
+function removeAttachmentChip(filePath) {
+    state.selectedAttachments = state.selectedAttachments.filter(p => p !== filePath);
+    renderAttachmentChips();
+}
+
+function updateTokenGauge() {
+    const fill = document.getElementById('token-gauge-fill');
+    const text = document.getElementById('token-gauge-text');
+    if (!fill || !text) return;
+    
+    let totalChars = 0;
+    if (queryInput) totalChars += queryInput.value.length;
+    
+    if (state.messages) {
+        state.messages.forEach(m => {
+            totalChars += (m.content || '').length;
+        });
+    }
+    
+    if (state.selectedAttachments && state.workspaceFiles) {
+        state.selectedAttachments.forEach(att => {
+            const fileObj = state.workspaceFiles.find(f => f.path === att);
+            if (fileObj) totalChars += fileObj.size || 0;
+        });
+    }
+    
+    const estTokens = Math.round(totalChars / 4);
+    const maxTokens = 128000;
+    const pct = Math.min(100, Math.round((estTokens / maxTokens) * 100));
+    
+    fill.style.width = `${pct}%`;
+    text.textContent = `Context Tokens: ${estTokens.toLocaleString()} / ${(maxTokens / 1000).toFixed(0)}K (${pct}%)`;
+}
+
 function exportConversation() {
     if (!state.activeConversationId || state.messages.length === 0) {
         showToast("No active conversation to export.", "info");
         return;
     }
     
-    let mdText = `# Conversation: ${activeChatTitle.textContent}\nExported on: ${new Date().toLocaleString()}\n\n---\n\n`;
-    state.messages.forEach(m => {
-        const sender = m.role === 'user' ? 'User' : 'Assistant';
-        mdText += `## ${sender}\n\n${m.content}\n\n---\n\n`;
+    showConfirm("Export Chat", "Are you sure you want to export this conversation history to Markdown?", () => {
+        let mdText = `# Conversation: ${activeChatTitle.textContent}\nExported on: ${new Date().toLocaleString()}\n\n---\n\n`;
+        state.messages.forEach(m => {
+            const sender = m.role === 'user' ? 'User' : 'Assistant';
+            mdText += `## ${sender}\n\n${m.content}\n\n---\n\n`;
+        });
+        
+        const blob = new Blob([mdText], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `conversation_${state.activeConversationId}.md`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast("Conversation exported successfully!", "success");
     });
-    
-    const blob = new Blob([mdText], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `conversation_${state.activeConversationId}.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showToast("Conversation exported successfully!", "success");
 }
 
 function initVoiceInput() {
@@ -1715,12 +2027,25 @@ function showAutocomplete(char, query) {
     selectedIndex = -1;
     
     if (char === '/') {
-        // Filter skills
-        filteredItems = state.skills.filter(s => s.name.toLowerCase().includes(query)).map(s => ({
-            name: s.name,
-            type: 'skill',
-            value: s.name + ': ' + s.description
-        }));
+        if (query.startsWith('file ') || query.startsWith('files ') || query === 'file' || query === 'files') {
+            let fileQuery = '';
+            if (query.startsWith('file ')) fileQuery = query.substring(5);
+            else if (query.startsWith('files ')) fileQuery = query.substring(6);
+            
+            const filesHistory = state.workspaceFiles || [];
+            filteredItems = filesHistory.filter(f => f.path.toLowerCase().includes(fileQuery) || f.name.toLowerCase().includes(fileQuery)).map(f => ({
+                name: f.path,
+                type: 'file',
+                value: f.path
+            }));
+        } else {
+            // Filter skills
+            filteredItems = state.skills.filter(s => s.name.toLowerCase().includes(query)).map(s => ({
+                name: s.name,
+                type: 'skill',
+                value: s.name + ': ' + s.description
+            }));
+        }
     } else if (char === '@') {
         // Filter documents
         filteredItems = state.documents.filter(d => d.name && d.name.toLowerCase().includes(query)).map(d => ({
@@ -1764,6 +2089,18 @@ function updateSelectedAutocomplete() {
 }
 
 function selectAutocompleteItem(item) {
+    if (item.type === 'file') {
+        const text = queryInput.value;
+        const beforeTrigger = text.slice(0, triggerIndex);
+        const afterCursor = text.slice(queryInput.selectionStart);
+        queryInput.value = (beforeTrigger + afterCursor).trim();
+        addAttachmentChip(item.name);
+        hideAutocomplete();
+        validateInputs();
+        queryInput.focus();
+        return;
+    }
+    
     const text = queryInput.value;
     const cursorPosition = queryInput.selectionStart;
     
@@ -1859,9 +2196,400 @@ function escapeHtml(text) {
 const previewCloseBtn = document.getElementById('preview-close-btn');
 if (previewCloseBtn) {
     previewCloseBtn.addEventListener('click', () => {
-        document.getElementById('preview-pane').style.display = 'none';
         const previewPane = document.getElementById('preview-pane');
+        previewPane.style.display = 'none';
         delete previewPane.dataset.currentDocId;
+        delete previewPane.dataset.currentWorkspaceFilePath;
+        if (previewSaveBtn) {
+            previewSaveBtn.style.display = 'none';
+        }
     });
 }
+
+// --- Local Workspace Explorer Logic ---
+async function configureBackendWorkspace(path, oldPath = null) {
+    if (!path) {
+        renderProjectsList();
+        try {
+            await fetch('/api/workspace/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    path: "",
+                    old_path: oldPath || ""
+                })
+            });
+            await loadDocuments(); // Reload Catalogue to remove purged files from UI
+        } catch (e) {
+            console.error("Failed to notify backend of cleared workspace", e);
+        }
+        return;
+    }
+    
+    // Resolve credentials for background sync
+    const activeProvider = state.settings.provider;
+    let apiKey = '';
+    let ollamaUrl = '';
+    let embedModel = '';
+    
+    if (activeProvider === 'gemini') {
+        apiKey = state.settings.apiKey;
+        embedModel = state.settings.geminiEmbed;
+    } else if (activeProvider === 'openai') {
+        apiKey = state.settings.openaiKey;
+        embedModel = state.settings.openaiEmbed;
+    } else if (activeProvider === 'ollama') {
+        ollamaUrl = state.settings.ollamaUrl;
+        embedModel = state.settings.ollamaEmbed;
+    } else if (activeProvider === 'custom') {
+        apiKey = state.settings.customKey;
+        ollamaUrl = state.settings.customUrl;
+        embedModel = state.settings.customEmbed;
+    }
+    
+    try {
+        const resp = await fetch('/api/workspace/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: path,
+                provider: activeProvider,
+                apiKey: apiKey,
+                ollamaUrl: ollamaUrl,
+                embedModel: embedModel
+            })
+        });
+        
+        const data = await resp.json();
+        if (data.status === 'success') {
+            if (path && !state.settings.workspaceHistory.includes(path)) {
+                state.settings.workspaceHistory.push(path);
+                localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+            }
+            renderProjectsList();
+            
+            if (path) {
+                const parts = path.split(/[\\/]/);
+                const folderName = parts[parts.length - 1] || path;
+                activateWorkspaceChat(folderName);
+            }
+        } else {
+            showToast(data.detail || "Could not set workspace directory", "error");
+        }
+    } catch (err) {
+        console.error("Config workspace error", err);
+    }
+}
+
+async function activateWorkspaceChat(folderName) {
+    const titleToFind = `Workspace: ${folderName}`;
+    const existing = state.conversations.find(c => c.title === titleToFind);
+    if (existing) {
+        activateConversation(existing.id, existing.title);
+    } else {
+        try {
+            const resp = await fetch('/api/conversations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: titleToFind })
+            });
+            const data = await resp.json();
+            if (data.id) {
+                state.conversations.unshift(data);
+                renderConversationsList();
+                activateConversation(data.id, data.title);
+            }
+        } catch (err) {
+            console.error("Failed to create workspace conversation", err);
+        }
+    }
+}
+
+async function loadWorkspaceFiles() {
+    if (!state.settings.workspacePath) {
+        state.workspaceFiles = [];
+        return;
+    }
+    
+    try {
+        const resp = await fetch('/api/workspace/files');
+        const data = await resp.json();
+        if (data.status === 'success') {
+            state.workspaceFiles = data.files || [];
+        }
+    } catch (err) {
+        console.error("Could not load workspace files", err);
+        state.workspaceFiles = [];
+    }
+}
+
+async function openWorkspaceFilePreview(filePath) {
+    const previewPane = document.getElementById('preview-pane');
+    const titleEl = document.getElementById('preview-doc-title');
+    const bodyEl = document.getElementById('preview-body');
+    
+    if (!previewPane || !titleEl || !bodyEl) return;
+    
+    titleEl.textContent = filePath.split('/').pop() + ' (Workspace)';
+    previewPane.style.display = 'flex';
+    previewPane.dataset.currentWorkspaceFilePath = filePath;
+    
+    if (previewSaveBtn) {
+        previewSaveBtn.style.display = 'block';
+    }
+    
+    bodyEl.innerHTML = '<div style="text-align:center; padding:20px;">Loading file contents...</div>';
+    
+    try {
+        const resp = await fetch(`/api/workspace/file?path=${encodeURIComponent(filePath)}`);
+        const data = await resp.json();
+        if (data.status === 'success') {
+            bodyEl.innerHTML = `
+                <textarea id="workspace-file-editor" style="width: 100%; height: calc(100vh - 180px); border: none; outline: none; padding: 12px; font-family: 'Space Mono', monospace; font-size: 12.5px; line-height: 1.5; background: var(--bg-card); color: var(--text-primary); resize: none; border-radius: 4px; box-sizing: border-box; border: 1px solid #000; box-shadow: var(--neo-shadow-sm);">${escapeHtml(data.content)}</textarea>
+            `;
+        } else {
+            bodyEl.innerHTML = `<div style="color:var(--red-alert); padding:20px;">Failed to load file: ${data.message}</div>`;
+        }
+    } catch (err) {
+        bodyEl.innerHTML = `<div style="color:var(--red-alert); padding:20px;">Connection failed: ${err.message}</div>`;
+    }
+}
+
+// Bind save workspace file changes button
+if (previewSaveBtn) {
+    previewSaveBtn.addEventListener('click', async () => {
+        const previewPane = document.getElementById('preview-pane');
+        const filePath = previewPane.dataset.currentWorkspaceFilePath;
+        const editor = document.getElementById('workspace-file-editor');
+        
+        if (!filePath || !editor) return;
+        
+        previewSaveBtn.disabled = true;
+        previewSaveBtn.textContent = 'Saving...';
+        
+        try {
+            const resp = await fetch('/api/workspace/file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    path: filePath,
+                    content: editor.value
+                })
+            });
+            const data = await resp.json();
+            if (data.status === 'success') {
+                showToast("Workspace file changes saved successfully!", "success");
+                loadWorkspaceFiles();
+            } else {
+                showToast(data.detail || "Could not save file changes", "error");
+            }
+        } catch (err) {
+            showToast("Failed to connect to server: " + err.message, "error");
+        } finally {
+            previewSaveBtn.disabled = false;
+            previewSaveBtn.textContent = 'Save Changes';
+        }
+    });
+}
+
+// --- Projects Render & Sidebar Workspace Manager ---
+function renderProjectsList() {
+    const projectList = document.getElementById('project-list');
+    if (!projectList) return;
+    
+    projectList.innerHTML = '';
+    const history = state.settings.workspaceHistory || [];
+    
+    if (history.length === 0) {
+        projectList.innerHTML = '<li style="color:var(--text-secondary); text-align:center; padding:10px; font-size:12px; font-weight:700;">No active workspace. Click + to set folder.</li>';
+        return;
+    }
+    
+    history.forEach(path => {
+        const parts = path.split(/[\\/]/);
+        const folderName = parts[parts.length - 1] || path;
+        const isActive = (state.settings.workspacePath === path);
+        
+        const li = document.createElement('li');
+        li.className = `project-card ${isActive ? 'active' : ''}`;
+        
+        const info = document.createElement('div');
+        info.className = 'project-card-info';
+        info.innerHTML = `
+            <span class="project-card-title">${folderName}</span>
+            <span class="project-card-meta">${path}</span>
+        `;
+        li.appendChild(info);
+        
+        // Add a delete/clear button to the project card
+        const delBtn = document.createElement('button');
+        delBtn.className = 'project-card-delete';
+        delBtn.innerHTML = '×';
+        delBtn.title = isActive ? "Clear Active Workspace" : "Remove from History";
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (isActive) {
+                showConfirm("Remove Project", "Are you sure you want to clear this workspace project and purge its RAG database documents?", async () => {
+                    const oldPath = state.settings.workspacePath;
+                    state.settings.workspacePath = "";
+                    if (workspacePathInput) workspacePathInput.value = "";
+                    localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+                    await configureBackendWorkspace("", oldPath);
+                    showToast("Workspace project deactivated.", "success");
+                });
+            } else {
+                showConfirm("Remove History Entry", "Remove this folder from your workspace projects list?", () => {
+                    state.settings.workspaceHistory = state.settings.workspaceHistory.filter(p => p !== path);
+                    localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+                    renderProjectsList();
+                    showToast("Workspace folder removed from history.", "success");
+                });
+            }
+        });
+        li.appendChild(delBtn);
+        
+        if (isActive) {
+            li.addEventListener('click', () => {
+                loadWorkspaceFiles();
+            });
+        } else {
+            li.addEventListener('click', async () => {
+                const oldPath = state.settings.workspacePath;
+                state.settings.workspacePath = path;
+                localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+                await configureBackendWorkspace(path, oldPath);
+                showToast(`Switched active project to ${folderName}`, "success");
+            });
+        }
+        
+        projectList.appendChild(li);
+    });
+    
+    if (state.settings.workspacePath) {
+        // Auto-load files nested inside the active project card
+        loadWorkspaceFiles();
+    }
+}
+
+// Add project button trigger
+const addProjectBtn = document.getElementById('sidebar-add-project-btn');
+if (addProjectBtn) {
+    addProjectBtn.addEventListener('click', async () => {
+        showToast("Opening folder selector...", "info");
+        try {
+            const resp = await fetch('/api/workspace/select-folder', { method: 'POST' });
+            const data = await resp.json();
+            if (data.status === 'success' && data.path) {
+                const path = data.path;
+                const oldPath = state.settings.workspacePath;
+                state.settings.workspacePath = path;
+                if (workspacePathInput) workspacePathInput.value = path;
+                localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+                await configureBackendWorkspace(state.settings.workspacePath, oldPath);
+                showToast(`Workspace project configured: ${path}`, "success");
+            } else {
+                showToast("Folder selection cancelled.", "info");
+            }
+        } catch (err) {
+            showToast("Failed to open folder picker: " + err.message, "error");
+        }
+    });
+}
+
+// Bind Settings Drawer tab buttons switching & sliding pill animation
+const drawerTabBtns = document.querySelectorAll('.drawer-tab-btn');
+const settingsTabPanes = document.querySelectorAll('.settings-tab-pane');
+const tabIndicator = document.getElementById('drawer-tab-indicator');
+
+function updateTabIndicator(activeBtn) {
+    if (!activeBtn || !tabIndicator) return;
+    tabIndicator.style.width = `${activeBtn.offsetWidth}px`;
+    tabIndicator.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
+}
+
+window.updateTabIndicator = updateTabIndicator;
+
+drawerTabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        drawerTabBtns.forEach(b => b.classList.remove('active'));
+        settingsTabPanes.forEach(p => p.classList.remove('active'));
+        
+        btn.classList.add('active');
+        const tabId = btn.getAttribute('data-settings-tab');
+        const targetPane = document.getElementById(tabId);
+        if (targetPane) targetPane.classList.add('active');
+        updateTabIndicator(btn);
+    });
+});
+
+// Settings footer button trigger
+const settingsFooterBtn = document.getElementById('settings-footer-btn');
+if (settingsFooterBtn) {
+    settingsFooterBtn.addEventListener('click', () => {
+        openDrawer(settingsDrawer);
+    });
+}
+
+// Inline model selector in chat input bar
+const chatModelSelect = document.getElementById('chat-model-select');
+if (chatModelSelect) {
+    chatModelSelect.value = state.settings.provider;
+    chatModelSelect.addEventListener('change', (e) => {
+        const prov = e.target.value;
+        state.settings.provider = prov;
+        
+        // Sync configurations panel checkboxes/radios
+        document.querySelectorAll('input[name="provider"]').forEach(radio => {
+            radio.checked = (radio.value === prov);
+        });
+        toggleProviderOptions(prov);
+        
+        localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+        updateHeaderDisplay();
+        showToast(`Switched active provider to ${prov.toUpperCase()}`, "success");
+    });
+}
+
+// Inline file attachment upload button inside chat input bar
+const chatUploadBtn = document.getElementById('chat-upload-btn');
+const inlineFileInput = document.getElementById('inline-file-input');
+if (chatUploadBtn && inlineFileInput) {
+    chatUploadBtn.addEventListener('click', () => {
+        inlineFileInput.click();
+    });
+    inlineFileInput.addEventListener('change', async (e) => {
+        const files = e.target.files;
+        if (files.length > 0) {
+            showToast(`Uploading ${files[0].name}...`, "info");
+            const formData = new FormData();
+            formData.append('file', files[0]);
+            
+            // Resolve credentials for ingestion
+            const creds = resolveActiveCredentials();
+            formData.append('provider', creds.provider);
+            if (creds.apiKey) formData.append('apiKey', creds.apiKey);
+            if (creds.ollamaUrl) formData.append('ollamaUrl', creds.ollamaUrl);
+            if (creds.embedModel) formData.append('embedModel', creds.embedModel);
+            
+            try {
+                const resp = await fetch('/api/documents', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                if (data.status === 'success') {
+                    showToast(`Successfully uploaded ${files[0].name}`, "success");
+                    await loadDocuments();
+                } else {
+                    showToast(data.detail || "Upload failed", "error");
+                }
+            } catch (err) {
+                showToast("Failed to upload: " + err.message, "error");
+            } finally {
+                inlineFileInput.value = '';
+            }
+        }
+    });
+}
+
 

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
 from app.database import Database
+from app.filesystem import workspace_manager
 from app.rag_engine import (
     extract_text_from_file, 
     chunk_text, 
@@ -58,6 +59,7 @@ class ChatRequest(BaseModel):
     systemPrompt: Optional[str] = None
     webSearch: Optional[bool] = False
     agentMode: Optional[bool] = False
+    retrievalStrategy: Optional[str] = "hybrid"
 
 class ConversationCreate(BaseModel):
     title: str
@@ -93,6 +95,18 @@ class SkillUpdate(BaseModel):
     apiKey: Optional[str] = None
     ollamaUrl: Optional[str] = None
     embedModel: Optional[str] = None
+
+class WorkspaceConfig(BaseModel):
+    path: str
+    old_path: Optional[str] = None
+    provider: Optional[str] = None
+    apiKey: Optional[str] = None
+    ollamaUrl: Optional[str] = None
+    embedModel: Optional[str] = None
+
+class FileWriteRequest(BaseModel):
+    path: str
+    content: str
 
 # --- Background Extraction Task ---
 async def background_extraction_job(
@@ -405,6 +419,152 @@ async def update_skill_endpoint(skill_id: str, req: SkillUpdate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+async def background_workspace_sync(
+    workspace_path: str,
+    provider: Optional[str],
+    api_key: Optional[str],
+    ollama_url: Optional[str],
+    embed_model: Optional[str]
+):
+    try:
+        print(f"Starting background RAG sync for workspace: {workspace_path}")
+        files = workspace_manager.list_files()
+        
+        # Only ingest typical documentation files to prevent spam and rate limits
+        text_exts = {".txt", ".md"}
+        
+        for file_info in files:
+            rel_path = file_info["path"]
+            ext = os.path.splitext(rel_path)[1].lower()
+            if ext not in text_exts:
+                continue
+                
+            abs_path = os.path.join(workspace_path, rel_path)
+            # Check if already in knowledge catalog
+            existing_docs = db.get_all_documents()
+            already_ingested = False
+            for d in existing_docs:
+                if d["name"] == rel_path:
+                    already_ingested = True
+                    break
+                    
+            if not already_ingested:
+                try:
+                    content = workspace_manager.read_file(rel_path)
+                    if not content.strip():
+                        continue
+                        
+                    doc_id = str(uuid.uuid4())
+                    size = os.path.getsize(abs_path)
+                    upload_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    text_chunks = chunk_text(content, chunk_size=600, chunk_overlap=100)
+                    
+                    chunks_to_insert = []
+                    for idx, tc in enumerate(text_chunks):
+                        emb = await get_embedding(
+                            text=tc,
+                            provider=provider or "google",
+                            api_key=api_key,
+                            ollama_url=ollama_url,
+                            model=embed_model
+                        )
+                        chunks_to_insert.append({
+                            "id": str(uuid.uuid4()),
+                            "doc_id": doc_id,
+                            "idx": idx,
+                            "text": tc,
+                            "embedding": emb
+                        })
+                    
+                    db.add_document(doc_id, rel_path, size, upload_date, chunks_to_insert)
+                    print(f"Sync: Successfully auto-ingested workspace file '{rel_path}'")
+                except Exception as fe:
+                    print(f"Error auto-ingesting '{rel_path}': {fe}")
+        print("Background RAG sync completed.")
+    except Exception as e:
+        print(f"Error in background workspace RAG sync: {e}")
+
+# --- REST Endpoints: Workspace Management ---
+@app.post("/api/workspace/select-folder")
+async def select_folder():
+    import tkinter as tk
+    from tkinter import filedialog
+    def ask_directory():
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        path = filedialog.askdirectory()
+        root.destroy()
+        return path
+    
+    path = await asyncio.to_thread(ask_directory)
+    return {"status": "success", "path": path}
+
+@app.post("/api/workspace/config")
+async def config_workspace(req: WorkspaceConfig, background_tasks: BackgroundTasks):
+    # If path is cleared/empty, purge all previously auto-ingested workspace documents from database
+    if not req.path.strip():
+        old_workspace = workspace_manager.workspace_root or req.old_path
+        if old_workspace:
+            try:
+                # Set temporary workspace root to inspect and retrieve file listing
+                workspace_manager.set_workspace(old_workspace)
+                files_to_remove = [f["path"] for f in workspace_manager.list_files()]
+                existing_docs = db.get_all_documents()
+                removed_count = 0
+                for rel_path in files_to_remove:
+                    for d in existing_docs:
+                        if d["name"] == rel_path:
+                            db.delete_document(d["id"])
+                            removed_count += 1
+                if removed_count > 0:
+                    print(f"Sync: Cleared {removed_count} auto-ingested workspace file(s) from database.")
+            except Exception as ex:
+                print(f"Warning: Failed to purge workspace documents from DB: {ex}")
+        
+        res = workspace_manager.set_workspace("")
+        return res
+
+    res = workspace_manager.set_workspace(req.path)
+    if res["status"] == "error":
+        raise HTTPException(status_code=400, detail=res["message"])
+    
+    # Run workspace background indexing sync
+    if req.path:
+        background_tasks.add_task(
+            background_workspace_sync,
+            workspace_path=res["workspace"],
+            provider=req.provider,
+            api_key=req.apiKey,
+            ollama_url=req.ollamaUrl,
+            embed_model=req.embedModel
+        )
+    return res
+
+@app.get("/api/workspace/files")
+async def get_workspace_files():
+    try:
+        return {"status": "success", "files": workspace_manager.list_files()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/workspace/file")
+async def get_workspace_file(path: str):
+    try:
+        content = workspace_manager.read_file(path)
+        return {"status": "success", "content": content}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/api/workspace/file")
+async def save_workspace_file(req: FileWriteRequest):
+    try:
+        workspace_manager.write_file(req.path, req.content)
+        return {"status": "success", "message": f"File '{req.path}' saved."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- REST Endpoints: Chat & Memory Retrieval ---
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
@@ -435,7 +595,8 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
             query_embedding=query_embedding,
             chunks=all_chunks,
             top_k=request.topK,
-            threshold=request.threshold
+            threshold=request.threshold,
+            retrieval_strategy=request.retrievalStrategy or "hybrid"
         )
         
         # 3. Retrieve matched profile memories
@@ -552,12 +713,88 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
 
             assistant_reply = ""
             try:
+                # 1. Parse query for referenced files (/file path or /files path)
+                import re
+                referenced_files = re.findall(r'/(?:file|files)\s+([^\s,;]+)', query)
+                injected_file_context = ""
+                for ref_file in referenced_files:
+                    try:
+                        clean_ref = ref_file.strip().strip("'\"")
+                        file_content = workspace_manager.read_file(clean_ref)
+                        injected_file_context += (
+                            f"\n\n[FILE ATTACHMENT: {clean_ref}]\n"
+                            f"Content of file '{clean_ref}':\n"
+                            f"```\n"
+                            f"{file_content}\n"
+                            f"```\n"
+                        )
+                    except Exception as e:
+                        print(f"Warning: Failed to read referenced file '{ref_file}': {e}")
+
                 formatted_msgs = [{"role": m.role, "content": m.content} for m in request.messages]
+                if injected_file_context and formatted_msgs:
+                    formatted_msgs[-1]["content"] += injected_file_context
                 
                 # Combine system prompt with web search context
                 sys_prompt = request.systemPrompt or ""
                 if web_search_text:
                     sys_prompt += f"\n\nRetrieved Web Search Context:\n{web_search_text}"
+                
+                if workspace_manager.workspace_root:
+                    try:
+                        workspace_files = workspace_manager.list_files()
+                        total_size = sum(f.get("size", 0) for f in workspace_files)
+                    except Exception:
+                        workspace_files = []
+                        total_size = 0
+                    
+                    # If total size of codebase is small (<120 KB), read and attach all files automatically!
+                    auto_attached_contents = ""
+                    if 0 < total_size < 120 * 1024:
+                        for f in workspace_files:
+                            try:
+                                content = workspace_manager.read_file(f["path"])
+                                auto_attached_contents += (
+                                    f"\n\n[WORKSPACE FILE: {f['path']}]\n"
+                                    f"```\n"
+                                    f"{content}\n"
+                                    f"```\n"
+                                )
+                            except Exception:
+                                pass
+                    
+                    files_str = "\n".join([f"- {f['path']} ({round(f['size']/1024, 1)} KB)" for f in workspace_files])
+                    
+                    sys_prompt += (
+                        f"\n\n[SYSTEM INFO: Active Local Workspace: {workspace_manager.workspace_root}]\n"
+                        f"The files currently available in the active workspace project are:\n"
+                        f"{files_str}\n\n"
+                    )
+                    
+                    if auto_attached_contents:
+                        sys_prompt += (
+                            "The complete source code of all files in the workspace has been automatically loaded below for your reference. "
+                            "You can read, review, analyze, and edit them directly.\n"
+                            f"{auto_attached_contents}"
+                        )
+                    else:
+                        sys_prompt += (
+                            "Since the workspace is large, files have not been loaded automatically. "
+                            "To inspect the content of any file, instruct the user to type `/file [filepath]` in their message.\n"
+                        )
+                        
+                    sys_prompt += (
+                        "\n\nYou have full permission to read, write, and modify files in this workspace.\n"
+                        "If the user asks you to write code, create, or update files, you must output the file content using this exact tag format:\n"
+                        "[WRITE_FILE: relative/path/to/file.ext]\n"
+                        "complete file content goes here\n"
+                        "[END_WRITE_FILE]\n"
+                        "For example:\n"
+                        "[WRITE_FILE: hello.py]\n"
+                        "print('hello world')\n"
+                        "[END_WRITE_FILE]\n"
+                        "Write out the full file content inside the tags. You can output multiple write blocks if needed."
+                    )
 
                 async for text_part in generate_response_stream(
                     messages=formatted_msgs,
@@ -573,6 +810,17 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 ):
                     assistant_reply += text_part
                     yield f"event: text\ndata: {json.dumps(text_part)}\n\n"
+                
+                # Intercept and process any WRITE_FILE commands generated by the LLM
+                import re
+                write_matches = re.findall(r'\[WRITE_FILE:\s*([^\]\n\r]+)\]\r?\n?([\s\S]*?)\[END_WRITE_FILE\]', assistant_reply)
+                for file_path, content in write_matches:
+                    clean_path = file_path.strip()
+                    try:
+                        workspace_manager.write_file(clean_path, content)
+                        yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': f'Auto-saved file changes to: {clean_path}'})}\n\n"
+                    except Exception as we:
+                        yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': f'Failed to write file {clean_path}: {we}'})}\n\n"
                     
                 # Save assistant response to SQLite log
                 # Wrapped in its own try/except: embedding failure must NOT erase the

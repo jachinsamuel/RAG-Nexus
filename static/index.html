@@ -15,98 +15,44 @@
 <body>
     <div class="app-container">
         
-        <!-- Sidebar: Document Ingestion & Evolving Memory -->
+        <!-- Sidebar: Projects & Conversations -->
         <aside class="sidebar">
             <div class="brand">
-                <h2>Nexus</h2>
+                <span class="logo-text">Nexus</span>
             </div>
 
-            <button class="new-chat-btn" id="new-chat-btn">+ New Chat</button>
+            <button class="new-chat-btn" id="new-chat-btn">+ New Conversation</button>
 
-            <!-- Navigation Tabs -->
-            <div class="sidebar-tabs">
-                <button class="tab-btn active" data-tab="catalog-pane">Catalogue</button>
-                <button class="tab-btn" data-tab="memory-pane">Memory</button>
-                <button class="tab-btn" data-tab="skills-pane">Skills</button>
-            </div>
-
-            <!-- Tab Panes -->
-            <div class="tab-content-container">
+            <!-- Categorized Navigation Lists -->
+            <div class="sidebar-scrollable-area">
                 
-                <!-- Pane 1: Document Catalogue -->
-                <div class="tab-pane active" id="catalog-pane">
-                    <div class="dropzone" id="dropzone">
-                        <input type="file" id="file-input" accept=".pdf,.txt,.md" style="display: none;">
-                        <div class="dropzone-content">
-                            <span class="upload-icon">↑</span>
-                            <p>Drag & Drop files</p>
-                            <span>Supports PDF, TXT, MD</span>
-                        </div>
+                <!-- Projects List -->
+                <div class="sidebar-category">
+                    <div class="category-header" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                        <span>Workspace Projects</span>
+                        <button id="sidebar-add-project-btn" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 8px; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;" title="Configure New Project Workspace">+</button>
                     </div>
-                    
-                    <div class="doc-list-container">
-                        <div class="section-sub-header">
-                            <h4>Knowledge Catalog</h4>
-                            <span id="doc-count">0 files</span>
-                        </div>
-                        <ul class="doc-list" id="doc-list">
-                            <!-- Dynamic Document Cards -->
-                        </ul>
-                    </div>
+                    <ul class="project-list" id="project-list">
+                        <!-- Dynamic list of workspace project folders -->
+                    </ul>
                 </div>
 
-                <!-- Pane 2: Personal Profile Memory -->
-                <div class="tab-pane" id="memory-pane" style="display: none;">
-                    <div class="manual-form">
-                        <h4>Add Memory Fact</h4>
-                        <div class="manual-form-group">
-                            <input type="text" id="manual-fact-input" placeholder="e.g. User works on Windows 11" autocomplete="off">
-                            <button id="add-fact-btn">Add</button>
-                        </div>
-                    </div>
-                    
-                    <div class="memory-list-container">
-                        <div class="section-sub-header">
-                            <h4>Extracted Facts</h4>
-                        </div>
-                        <ul class="memory-list" id="memory-list">
-                            <!-- Dynamic Fact List -->
-                        </ul>
-                    </div>
+                <!-- Standalone Chat Conversations List -->
+                <div class="sidebar-category flex-grow-list">
+                    <span class="category-label">Conversations</span>
+                    <ul class="conv-list" id="conv-list">
+                        <!-- Dynamic standalone conversations list -->
+                    </ul>
                 </div>
-
-                <!-- Pane 3: Learned Skills Library -->
-                <div class="tab-pane" id="skills-pane" style="display: none;">
-                    <div class="manual-form">
-                        <h4>Create Custom Skill</h4>
-                        <div class="manual-form-group">
-                            <input type="text" id="manual-skill-name" placeholder="Skill Name (e.g. OAuth Setup)" autocomplete="off">
-                            <input type="text" id="manual-skill-desc" placeholder="Short description..." autocomplete="off">
-                            <textarea id="manual-skill-content" placeholder="Paste custom code or rules here..." rows="3"></textarea>
-                            <button id="add-skill-btn">Save Skill</button>
-                        </div>
-                    </div>
-                    
-                    <div class="skills-list-container">
-                        <div class="section-sub-header">
-                            <h4>Skills Library</h4>
-                        </div>
-                        <ul class="skills-list" id="skills-list">
-                            <!-- Dynamic Skills Cards -->
-                        </ul>
-                    </div>
-                </div>
-
+                
             </div>
 
-            <!-- Conversations History Panel -->
-            <div class="conv-list-container">
-                <div class="section-sub-header">
-                    <h4>Dialogue History</h4>
-                </div>
-                <ul class="conv-list" id="conv-list">
-                    <!-- Dynamic Past Conversations -->
-                </ul>
+            <!-- Settings link at the absolute bottom -->
+            <div class="sidebar-footer">
+                <button class="settings-toggle-footer-btn" id="settings-footer-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    Settings
+                </button>
             </div>
             
         </aside>
@@ -115,14 +61,12 @@
         <main class="chat-area">
             <header class="chat-header">
                 <div class="header-status">
-                    <div class="status-indicator online"></div>
-                    <span id="current-model-display" class="model-badge">Gemini 1.5 Flash</span>
-                    <span class="header-separator">/</span>
                     <span class="active-chat-title" id="active-chat-title">New Conversation</span>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button class="export-btn" id="export-btn" title="Export current chat to Markdown">&#x2913; Export Chat</button>
-                    <button class="settings-toggle" id="settings-btn">&#x2699;&#xFE0E; Settings</button>
+                    <button class="export-btn" id="export-btn" title="Export current chat to Markdown" style="display: flex; align-items: center; justify-content: center; padding: 10px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-share-2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                    </button>
                 </div>
             </header>
             
@@ -132,11 +76,30 @@
             
             <footer class="chat-footer" style="position: relative;">
                 <div id="autocomplete-dropdown" class="autocomplete-dropdown" style="display: none;"></div>
+                
+                <!-- Attachment Chips Container -->
+                <div id="attachment-container" class="attachment-container" style="display: none;"></div>
+
+                <!-- Central Chat Form (Antigravity Style) -->
                 <form class="chat-input-form" id="chat-form">
+                    <button type="button" id="chat-upload-btn" class="chat-upload-btn" title="Upload Document File">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </button>
+                    <input type="file" id="inline-file-input" accept=".pdf,.txt,.md" style="display: none;">
+                    
+                    <select id="chat-model-select" class="chat-model-select" title="Active Model">
+                        <option value="gemini">Gemini 1.5 Flash</option>
+                        <option value="openai">OpenAI GPT-4o-mini</option>
+                        <option value="claude">Claude 3.5 Sonnet</option>
+                        <option value="ollama">Ollama (Local)</option>
+                        <option value="custom">Custom Endpoint</option>
+                    </select>
+                    
+                    <input type="text" id="query-input" placeholder="Ask anything, @ to mention, / for actions" autocomplete="off" required>
+                    
                     <button type="button" id="mic-btn" class="mic-btn" title="Voice Input">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                     </button>
-                    <input type="text" id="query-input" placeholder="Ask questions or share preferences..." autocomplete="off" required>
                     <button type="button" id="agent-toggle-btn" class="agent-toggle-btn" title="Toggle Agent Mode (Multi-Agent Loop)">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
                     </button>
@@ -149,10 +112,13 @@
         <div class="preview-pane" id="preview-pane" style="display: none;">
             <div class="preview-header">
                 <h3 id="preview-doc-title">Document Preview</h3>
-                <button class="preview-close" id="preview-close-btn">&times;</button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="preview-save-btn" style="display: none; padding: 4px 10px; font-size: 11px; background: var(--cyan-color); border: var(--neo-border-thin); font-family: 'Space Grotesk', sans-serif; font-weight: 700; cursor: pointer; box-shadow: var(--neo-shadow-sm); color: #000000;">Save Changes</button>
+                    <button class="preview-close" id="preview-close-btn">&times;</button>
+                </div>
             </div>
             <div class="preview-body" id="preview-body">
-                <!-- Reconstructed document text -->
+                <!-- Reconstructed document text or editor -->
             </div>
         </div>
         
@@ -167,191 +133,271 @@
             </div>
         </div>
 
-        <!-- Panel: Settings Drawer -->
+        <!-- Panel: Settings Drawer (Redesigned with tabs) -->
         <div class="drawer" id="settings-drawer">
             <div class="drawer-header">
-                <h3>RAG Configurations</h3>
+                <h3>Configurations Suite</h3>
                 <button class="drawer-close" id="settings-close-btn">&times;</button>
             </div>
+            
+            <!-- Settings Multi-Tab Navigation -->
+            <div class="drawer-tabs">
+                <div class="drawer-tab-indicator" id="drawer-tab-indicator"></div>
+                <button class="drawer-tab-btn active" data-settings-tab="configs-tab">API & RAG</button>
+                <button class="drawer-tab-btn" data-settings-tab="appearance-tab">Appearance</button>
+                <button class="drawer-tab-btn" data-settings-tab="documents-tab">Knowledge</button>
+                <button class="drawer-tab-btn" data-settings-tab="skills-tab">Skills Library</button>
+            </div>
+            
             <div class="drawer-content">
-                <div class="settings-group">
-                    <label>Provider</label>
-                    <div class="radio-group">
-                        <label class="radio-label">
-                            <input type="radio" name="provider" value="gemini" checked> Gemini API
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="provider" value="openai"> OpenAI API
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="provider" value="claude"> Claude API
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="provider" value="ollama"> Ollama (Local)
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="provider" value="custom"> Custom API
-                        </label>
+                
+                <!-- Tab 1: API & RAG Configurations -->
+                <div class="settings-tab-pane active" id="configs-tab">
+                    <div class="settings-group">
+                        <label>Provider</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="provider" value="gemini" checked> Gemini API
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="provider" value="openai"> OpenAI API
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="provider" value="claude"> Claude API
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="provider" value="ollama"> Ollama (Local)
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="provider" value="custom"> Custom API
+                            </label>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Gemini Options -->
-                <div class="provider-options" id="gemini-options">
-                    <div class="settings-group">
-                        <label for="gemini-key">Gemini API Key</label>
-                        <input type="password" id="gemini-key" placeholder="AIzaSy...">
+                    <!-- Gemini Options -->
+                    <div class="provider-options" id="gemini-options">
+                        <div class="settings-group">
+                            <label for="gemini-key">Gemini API Key</label>
+                            <input type="password" id="gemini-key" placeholder="AIzaSy...">
+                        </div>
+                        <div class="settings-group">
+                            <label for="gemini-model">Generative Model</label>
+                            <input type="text" id="gemini-model" value="gemini-1.5-flash" placeholder="e.g. gemini-1.5-flash" list="gemini-generative-datalist">
+                            <datalist id="gemini-generative-datalist"></datalist>
+                        </div>
+                        <div class="settings-group">
+                            <label for="gemini-embed">Embedding Model</label>
+                            <input type="text" id="gemini-embed" value="text-embedding-004" placeholder="e.g. text-embedding-004" list="gemini-embed-datalist">
+                            <datalist id="gemini-embed-datalist"></datalist>
+                        </div>
                     </div>
-                    <div class="settings-group">
-                        <label for="gemini-model">Generative Model</label>
-                        <select id="gemini-model">
-                            <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash</option>
-                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                            <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Exp)</option>
-                        </select>
-                    </div>
-                    <div class="settings-group">
-                        <label for="gemini-embed">Embedding Model</label>
-                        <select id="gemini-embed">
-                            <option value="models/text-embedding-004" selected>text-embedding-004</option>
-                        </select>
-                    </div>
-                </div>
 
-                <!-- OpenAI Options -->
-                <div class="provider-options" id="openai-options" style="display: none;">
-                    <div class="settings-group">
-                        <label for="openai-key">OpenAI API Key</label>
-                        <input type="password" id="openai-key" placeholder="sk-proj-...">
+                    <!-- OpenAI Options -->
+                    <div class="provider-options" id="openai-options" style="display: none;">
+                        <div class="settings-group">
+                            <label for="openai-key">OpenAI API Key</label>
+                            <input type="password" id="openai-key" placeholder="sk-proj-...">
+                        </div>
+                        <div class="settings-group">
+                            <label for="openai-model">Generative Model</label>
+                            <input type="text" id="openai-model" value="gpt-4o-mini" placeholder="e.g. gpt-4o-mini" list="openai-generative-datalist">
+                            <datalist id="openai-generative-datalist"></datalist>
+                        </div>
+                        <div class="settings-group">
+                            <label for="openai-embed">Embedding Model</label>
+                            <input type="text" id="openai-embed" value="text-embedding-3-small" placeholder="e.g. text-embedding-3-small" list="openai-embed-datalist">
+                            <datalist id="openai-embed-datalist"></datalist>
+                        </div>
                     </div>
-                    <div class="settings-group">
-                        <label for="openai-model">Generative Model</label>
-                        <select id="openai-model">
-                            <option value="gpt-4o" selected>gpt-4o</option>
-                            <option value="gpt-4o-mini">gpt-4o-mini</option>
-                            <option value="gpt-4-turbo">gpt-4-turbo</option>
-                            <option value="o1-mini">o1-mini</option>
-                        </select>
-                    </div>
-                    <div class="settings-group">
-                        <label for="openai-embed">Embedding Model</label>
-                        <select id="openai-embed">
-                            <option value="text-embedding-3-small" selected>text-embedding-3-small</option>
-                            <option value="text-embedding-3-large">text-embedding-3-large</option>
-                            <option value="text-embedding-ada-002">text-embedding-ada-002</option>
-                        </select>
-                    </div>
-                </div>
 
-                <!-- Claude Options -->
-                <div class="provider-options" id="claude-options" style="display: none;">
-                    <div class="settings-group">
-                        <label for="claude-key">Anthropic API Key</label>
-                        <input type="password" id="claude-key" placeholder="sk-ant-...">
+                    <!-- Claude Options -->
+                    <div class="provider-options" id="claude-options" style="display: none;">
+                        <div class="settings-group">
+                            <label for="claude-key">Anthropic API Key</label>
+                            <input type="password" id="claude-key" placeholder="sk-ant-...">
+                        </div>
+                        <div class="settings-group">
+                            <label for="claude-model">Generative Model</label>
+                            <input type="text" id="claude-model" value="claude-3-5-sonnet-20240620" placeholder="e.g. claude-3-5-sonnet-20240620">
+                        </div>
+                        <div class="settings-group">
+                            <label for="claude-embed">Embedding Model (Fallback)</label>
+                            <input type="text" id="claude-embed" value="text-embedding-3-small" placeholder="Anthropic has no embeddings API, fallback to OpenAI key above">
+                        </div>
                     </div>
-                    <div class="settings-group">
-                        <label for="claude-model">Generative Model</label>
-                        <select id="claude-model">
-                            <option value="claude-3-5-sonnet-latest" selected>Claude 3.5 Sonnet</option>
-                            <option value="claude-3-5-haiku-latest">Claude 3.5 Haiku</option>
-                            <option value="claude-3-opus-latest">Claude 3 Opus</option>
-                        </select>
-                    </div>
-                    <div class="settings-group">
-                        <label for="claude-embed-provider">Fallback Embedding Provider</label>
-                        <select id="claude-embed-provider">
-                            <option value="gemini" selected>Gemini API</option>
-                            <option value="openai">OpenAI API</option>
-                            <option value="ollama">Ollama (Local)</option>
-                        </select>
-                    </div>
-                </div>
 
-                <!-- Ollama Options -->
-                <div class="provider-options" id="ollama-options" style="display: none;">
+                    <!-- Ollama Options -->
+                    <div class="provider-options" id="ollama-options" style="display: none;">
+                        <div class="settings-group" style="display: flex; flex-direction: row; gap: 8px; align-items: flex-end;">
+                            <div style="flex-grow: 1;">
+                                <label for="ollama-url">Ollama Server Base URL</label>
+                                <input type="text" id="ollama-url" value="http://localhost:11434">
+                            </div>
+                            <button class="save-settings-btn" id="scan-ollama-btn" style="margin: 0; padding: 10px 14px; font-size: 11px;">Scan</button>
+                        </div>
+                        <div class="settings-group">
+                            <label for="ollama-model">Generative Model</label>
+                            <input type="text" id="ollama-model" value="llama3" placeholder="e.g. llama3, phi3" list="ollama-generative-datalist">
+                            <datalist id="ollama-generative-datalist"></datalist>
+                        </div>
+                        <div class="settings-group">
+                            <label for="ollama-embed">Embedding Model</label>
+                            <input type="text" id="ollama-embed" value="nomic-embed-text" placeholder="e.g. nomic-embed-text" list="ollama-embed-datalist">
+                            <datalist id="ollama-embed-datalist"></datalist>
+                        </div>
+                    </div>
+
+                    <!-- Custom Options -->
+                    <div class="provider-options" id="custom-options" style="display: none;">
+                        <div class="settings-group">
+                            <label for="custom-url">Base URL</label>
+                            <input type="text" id="custom-url" placeholder="https://integrate.api.nvidia.com/v1">
+                        </div>
+                        <div class="settings-group">
+                            <label for="custom-key">API Key (Optional)</label>
+                            <input type="password" id="custom-key" placeholder="nvapi-...">
+                        </div>
+                        <div class="settings-group">
+                            <label for="custom-model">Generative Model</label>
+                            <input type="text" id="custom-model" placeholder="e.g. meta/llama-3.1-70b-instruct">
+                        </div>
+                        <div class="settings-group">
+                            <label for="custom-embed">Embedding Model</label>
+                            <input type="text" id="custom-embed" placeholder="e.g. nvidia/embeddings-nv-embed-qa-4">
+                        </div>
+                    </div>
+
+                    <hr class="divider">
+
+                    <!-- Chunk Options -->
                     <div class="settings-group">
-                        <label for="ollama-url">Ollama Base URL</label>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="ollama-url" value="http://localhost:11434" style="flex-grow: 1;">
-                            <button type="button" class="modal-btn confirm" id="scan-ollama-btn" style="padding: 4px 12px; font-size: 11px; margin: 0; background: var(--accent-color) !important; color: #000000 !important; border: var(--neo-border) !important; box-shadow: var(--neo-shadow-sm) !important;">Scan</button>
+                        <label>Text Chunk Size (chars)</label>
+                        <div class="range-value-container">
+                            <input type="range" id="chunk-size" min="100" max="2000" step="50" value="500">
+                            <span id="chunk-size-val">500</span>
                         </div>
                     </div>
                     <div class="settings-group">
-                        <label for="ollama-model">Generative Model</label>
-                        <input type="text" id="ollama-model" value="llama3" placeholder="e.g. llama3, phi3" list="ollama-generative-datalist">
-                        <datalist id="ollama-generative-datalist"></datalist>
+                        <label>Chunk Overlap (chars)</label>
+                        <div class="range-value-container">
+                            <input type="range" id="chunk-overlap" min="0" max="500" step="25" value="100">
+                            <span id="chunk-overlap-val">100</span>
+                        </div>
+                    </div>
+
+                    <!-- Retrieval Options -->
+                    <div class="settings-group">
+                        <label for="retrieval-strategy">Retrieval Strategy</label>
+                        <select id="retrieval-strategy" style="background: var(--bg-panel); color: var(--text-primary); border: var(--neo-border-thin); padding: 8px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; border-radius: 2px;">
+                            <option value="hybrid">Hybrid Search (Vector + BM25 Keywords)</option>
+                            <option value="vector">Vector Search Only (Semantic)</option>
+                            <option value="keyword">BM25 Keyword Search Only</option>
+                        </select>
                     </div>
                     <div class="settings-group">
-                        <label for="ollama-embed">Embedding Model</label>
-                        <input type="text" id="ollama-embed" value="nomic-embed-text" placeholder="e.g. nomic-embed-text" list="ollama-embed-datalist">
-                        <datalist id="ollama-embed-datalist"></datalist>
-                    </div>
-                </div>
-
-                <!-- Custom Options -->
-                <div class="provider-options" id="custom-options" style="display: none;">
-                    <div class="settings-group">
-                        <label for="custom-url">Base URL</label>
-                        <input type="text" id="custom-url" placeholder="https://integrate.api.nvidia.com/v1">
+                        <label>Top Contexts (K)</label>
+                        <div class="range-value-container">
+                            <input type="range" id="top-k" min="1" max="10" step="1" value="4">
+                            <span id="top-k-val">4</span>
+                        </div>
                     </div>
                     <div class="settings-group">
-                        <label for="custom-key">API Key (Optional)</label>
-                        <input type="password" id="custom-key" placeholder="nvapi-...">
+                        <label>Relevance Threshold</label>
+                        <div class="range-value-container">
+                            <input type="range" id="threshold" min="0.0" max="1.0" step="0.05" value="0.30">
+                            <span id="threshold-val">0.30</span>
+                        </div>
                     </div>
+
+                    <div class="settings-group" style="flex-direction: row; align-items: center; gap: 10px; margin: 10px 0;">
+                        <input type="checkbox" id="web-search-toggle" style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--cyan-color);">
+                        <label for="web-search-toggle" style="cursor: pointer; margin-bottom: 0;">Enable Web Search</label>
+                    </div>
+
                     <div class="settings-group">
-                        <label for="custom-model">Generative Model</label>
-                        <input type="text" id="custom-model" placeholder="e.g. meta/llama-3.1-70b-instruct">
+                        <label for="system-prompt">System Prompt Customization</label>
+                        <textarea id="system-prompt" rows="4" placeholder="Enter system instructions..."></textarea>
                     </div>
+
+                    <button class="save-settings-btn" id="save-settings-btn">Save Configurations</button>
+                </div>
+                
+                <!-- Tab 2: Appearance & UI Design Customization -->
+                <div class="settings-tab-pane" id="appearance-tab">
                     <div class="settings-group">
-                        <label for="custom-embed">Embedding Model</label>
-                        <input type="text" id="custom-embed" placeholder="e.g. nvidia/embeddings-nv-embed-qa-4">
+                        <label for="theme-mode-select">Appearance Theme</label>
+                        <select id="theme-mode-select" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px; font-family: inherit; font-weight: 600; border-radius: 8px;">
+                            <option value="dark">Dark Glass (Premium Midnight)</option>
+                            <option value="light">Light Glass (Clean Studio)</option>
+                        </select>
+                    </div>
+
+                    <button class="save-settings-btn" id="apply-appearance-btn" style="margin-top: 15px;">Apply Theme</button>
+                </div>
+                
+                <!-- Tab 2: Knowledge Catalog & Episodic Memory -->
+                <div class="settings-tab-pane" id="documents-tab">
+                    <div class="dropzone" id="dropzone">
+                        <input type="file" id="file-input" accept=".pdf,.txt,.md" style="display: none;">
+                        <div class="dropzone-content">
+                            <span class="upload-icon">↑</span>
+                            <p>Drag & Drop files</p>
+                            <span>Supports PDF, TXT, MD</span>
+                        </div>
+                    </div>
+                    
+                    <div class="doc-list-container" style="margin-bottom: 24px;">
+                        <div class="section-sub-header">
+                            <h4>Knowledge Catalog</h4>
+                            <span id="doc-count">0 files</span>
+                        </div>
+                        <ul class="doc-list" id="doc-list">
+                            <!-- Dynamic Document Cards -->
+                        </ul>
+                    </div>
+                    
+                    <hr class="divider">
+                    
+                    <div class="manual-form" style="margin-top: 16px;">
+                        <h4>Add Fact to Memory</h4>
+                        <div class="manual-form-group">
+                            <input type="text" id="manual-fact-input" placeholder="e.g. User works on Windows 11" autocomplete="off">
+                            <button id="add-fact-btn">Add</button>
+                        </div>
+                    </div>
+                    
+                    <div class="memory-list-container" style="margin-top: 16px;">
+                        <div class="section-sub-header">
+                            <h4>Extracted Facts Profile</h4>
+                        </div>
+                        <ul class="memory-list" id="memory-list">
+                            <!-- Dynamic Fact List -->
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Tab 3: Custom Skills Library -->
+                <div class="settings-tab-pane" id="skills-tab">
+                    <div class="manual-form">
+                        <h4>Create Custom Skill</h4>
+                        <div class="manual-form-group">
+                            <input type="text" id="manual-skill-name" placeholder="Skill Name (e.g. OAuth Setup)" autocomplete="off">
+                            <input type="text" id="manual-skill-desc" placeholder="Short description..." autocomplete="off">
+                            <textarea id="manual-skill-content" placeholder="Paste custom code or rules here..." rows="3"></textarea>
+                            <button id="add-skill-btn">Save Skill</button>
+                        </div>
+                    </div>
+                    
+                    <div class="skills-list-container" style="margin-top: 20px;">
+                        <div class="section-sub-header">
+                            <h4>Custom Skills Library</h4>
+                        </div>
+                        <ul class="skills-list" id="skills-list">
+                            <!-- Dynamic Skills Cards -->
+                        </ul>
                     </div>
                 </div>
 
-                <hr class="divider">
-
-                <!-- Chunk Options -->
-                <div class="settings-group">
-                    <label>Text Chunk Size (chars)</label>
-                    <div class="range-value-container">
-                        <input type="range" id="chunk-size" min="100" max="2000" step="50" value="500">
-                        <span id="chunk-size-val">500</span>
-                    </div>
-                </div>
-                <div class="settings-group">
-                    <label>Chunk Overlap (chars)</label>
-                    <div class="range-value-container">
-                        <input type="range" id="chunk-overlap" min="0" max="500" step="25" value="100">
-                        <span id="chunk-overlap-val">100</span>
-                    </div>
-                </div>
-
-                <!-- Retrieval Options -->
-                <div class="settings-group">
-                    <label>Top Contexts (K)</label>
-                    <div class="range-value-container">
-                        <input type="range" id="top-k" min="1" max="10" step="1" value="4">
-                        <span id="top-k-val">4</span>
-                    </div>
-                </div>
-                <div class="settings-group">
-                    <label>Relevance Threshold</label>
-                    <div class="range-value-container">
-                        <input type="range" id="threshold" min="0.0" max="1.0" step="0.05" value="0.30">
-                        <span id="threshold-val">0.30</span>
-                    </div>
-                </div>
-
-                <div class="settings-group" style="flex-direction: row; align-items: center; gap: 10px; margin: 10px 0;">
-                    <input type="checkbox" id="web-search-toggle" style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--cyan-color);">
-                    <label for="web-search-toggle" style="cursor: pointer; margin-bottom: 0;">Enable Web Search</label>
-                </div>
-
-                <div class="settings-group">
-                    <label for="system-prompt">System Prompt Customization</label>
-                    <textarea id="system-prompt" rows="4" placeholder="Enter system instructions..."></textarea>
-                </div>
-
-                <button class="save-settings-btn" id="save-settings-btn">Save Configurations</button>
             </div>
         </div>
 

@@ -321,7 +321,8 @@ async def search_hybrid(
     query_embedding: List[float],
     chunks: List[Dict[str, Any]],
     top_k: int,
-    threshold: float
+    threshold: float,
+    retrieval_strategy: str = "hybrid"
 ) -> tuple:
     if not chunks:
         return [], 0
@@ -330,7 +331,7 @@ async def search_hybrid(
     vector_results = []
     
     # 1. Semantic Vector Similarity Search
-    if query_embedding is not None:
+    if retrieval_strategy in ["hybrid", "vector"] and query_embedding is not None:
         query_dim = len(query_embedding)
         for chunk in chunks:
             chunk_emb = chunk.get("embedding")
@@ -347,42 +348,67 @@ async def search_hybrid(
         vector_results.sort(key=lambda x: x[1], reverse=True)
 
     # 2. Keyword TF-IDF Scoring Search
-    import re
-    import math
-    query_tokens = set(re.findall(r'\w+', query_text.lower()))
     keyword_results = []
-    if query_tokens:
-        doc_count = len(chunks)
-        df = {}
-        for token in query_tokens:
-            df[token] = sum(1 for c in chunks if token in c["text"].lower())
-            
-        idfs = {}
-        for token, count in df.items():
-            idfs[token] = math.log((doc_count - count + 0.5) / (count + 0.5) + 1.0)
-            
-        for chunk in chunks:
-            chunk_text_lower = chunk["text"].lower()
-            score = 0.0
+    if retrieval_strategy in ["hybrid", "keyword"]:
+        import re
+        import math
+        query_tokens = set(re.findall(r'\w+', query_text.lower()))
+        if query_tokens:
+            doc_count = len(chunks)
+            df = {}
             for token in query_tokens:
-                if token in chunk_text_lower:
-                    tf = chunk_text_lower.count(token)
-                    score += tf * idfs.get(token, 0.0)
-            if score > 0:
-                keyword_results.append((chunk, score))
-        
-        # Sort keyword results by score
-        keyword_results.sort(key=lambda x: x[1], reverse=True)
+                df[token] = sum(1 for c in chunks if token in c["text"].lower())
+                
+            idfs = {}
+            for token, count in df.items():
+                idfs[token] = math.log((doc_count - count + 0.5) / (count + 0.5) + 1.0)
+                
+            for chunk in chunks:
+                chunk_text_lower = chunk["text"].lower()
+                score = 0.0
+                for token in query_tokens:
+                    if token in chunk_text_lower:
+                        tf = chunk_text_lower.count(token)
+                        score += tf * idfs.get(token, 0.0)
+                if score > 0:
+                    keyword_results.append((chunk, score))
+            
+            # Sort keyword results by score
+            keyword_results.sort(key=lambda x: x[1], reverse=True)
 
-    # 3. Reciprocal Rank Fusion (RRF)
-    # Create rank maps
+    if retrieval_strategy == "vector":
+        final_results = []
+        for chunk, sim in vector_results[:top_k]:
+            final_results.append({
+                "id": chunk["id"],
+                "doc_id": chunk["doc_id"],
+                "doc_name": chunk["doc_name"],
+                "idx": chunk["idx"],
+                "text": chunk["text"],
+                "similarity": sim
+            })
+        return final_results, mismatched
+
+    if retrieval_strategy == "keyword":
+        final_results = []
+        for chunk, score in keyword_results[:top_k]:
+            final_results.append({
+                "id": chunk["id"],
+                "doc_id": chunk["doc_id"],
+                "doc_name": chunk["doc_name"],
+                "idx": chunk["idx"],
+                "text": chunk["text"],
+                "similarity": min(1.0, score / 10.0)
+            })
+        return final_results, mismatched
+
+    # 3. Reciprocal Rank Fusion (RRF) for Hybrid
     vector_ranks = {item[0]["id"]: idx for idx, item in enumerate(vector_results)}
     keyword_ranks = {item[0]["id"]: idx for idx, item in enumerate(keyword_results)}
     
     rrf_scores = {}
     k_constant = 60
     
-    # All unique chunks matching either criteria
     all_matched_chunks = {}
     for chunk, _ in vector_results:
         all_matched_chunks[chunk["id"]] = chunk
@@ -401,14 +427,11 @@ async def search_hybrid(
             
         rrf_scores[chunk_id] = score
         
-    # Sort by RRF score
     sorted_chunk_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
     
-    # Reconstruct results
     final_results = []
     for chunk_id in sorted_chunk_ids[:top_k]:
         chunk = all_matched_chunks[chunk_id]
-        
         sim = 0.0
         v_idx = vector_ranks.get(chunk_id, None)
         if v_idx is not None:
