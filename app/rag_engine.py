@@ -54,15 +54,18 @@ async def get_embedding(
     elif provider == "gemini":
         if not api_key:
             raise ValueError("Gemini API key is required for embedding.")
-        genai.configure(api_key=api_key)
-        model_name = model or "models/text-embedding-004"
-        response = await asyncio.to_thread(
-            genai.embed_content,
-            model=model_name,
-            content=text,
-            task_type="retrieval_document"
-        )
-        return response["embedding"]
+        m_name = (model or "text-embedding-004").replace("models/", "")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:embedContent?key={api_key}"
+        async with httpx.AsyncClient() as client:
+            res = await client.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                json={"content": {"parts": [{"text": text}]}},
+                timeout=30.0
+            )
+            res.raise_for_status()
+            data = res.json()
+            return data.get("embedding", {}).get("values", [])
         
     elif provider == "openai":
         if not api_key:
@@ -152,20 +155,24 @@ async def get_embeddings_batch(
     elif provider == "gemini":
         if not api_key:
             raise ValueError("Gemini API key is required for embedding.")
-        genai.configure(api_key=api_key)
-        model_name = model or "models/text-embedding-004"
-        
+        m_name = (model or "text-embedding-004").replace("models/", "")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:batchEmbedContents?key={api_key}"
         results = []
-        batch_size = 100
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i+batch_size]
-            response = await asyncio.to_thread(
-                genai.embed_content,
-                model=model_name,
-                content=batch,
-                task_type="retrieval_document"
-            )
-            results.extend(response["embedding"])
+        batch_size = 50
+        async with httpx.AsyncClient() as client:
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i+batch_size]
+                requests = [{"model": f"models/{m_name}", "content": {"parts": [{"text": t}]}} for t in batch]
+                res = await client.post(
+                    url,
+                    headers={"Content-Type": "application/json"},
+                    json={"requests": requests},
+                    timeout=60.0
+                )
+                res.raise_for_status()
+                data = res.json()
+                for emb_item in data.get("embeddings", []):
+                    results.append(emb_item.get("values", []))
         return results
         
     elif provider == "openai":
@@ -509,9 +516,12 @@ async def generate_response_stream(
     """Generates streaming chat response from Gemini, OpenAI, Claude, Ollama, or Custom provider with retrieved RAG contexts."""
     
     default_system = (
-        "You are a helpful assistant. Use the provided context to answer the user's questions. "
-        "If you do not know the answer based on the context, state that you don't know, "
-        "but try to be as helpful as possible using the context."
+        "You are Nexus, an expert full-stack AI engineer and senior web developer. "
+        "When the user asks to generate, build, or create a website, application, or code script (e.g. HTML, CSS, JavaScript, Python, React, etc.), "
+        "NEVER output disclaimers about hosting, server deployment, or domain registration. "
+        "INSTEAD, immediately write and output complete, production-ready, beautiful HTML/CSS/JS code blocks in Markdown syntax (```html ... ```) "
+        "so the user can copy, save, or run the code directly. "
+        "If source document context is provided, integrate relevant details from it; otherwise, use your full software engineering capabilities."
     )
     full_system_prompt = system_prompt or default_system
     
@@ -550,29 +560,87 @@ async def generate_response_stream(
     if provider == "gemini":
         if not api_key:
             raise ValueError("Gemini API Key is required for generating responses.")
-        genai.configure(api_key=api_key)
-        model_name = model or "gemini-1.5-flash"
         
-        model_instance = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=full_system_prompt
-        )
-        
-        chat_contents = []
-        for msg in dialogue_history:
-            role = "user" if msg["role"] == "user" else "model"
-            chat_contents.append({"role": role, "parts": [msg["content"]]})
+        contents_payload = []
+        for msg in messages:
+            r = "user" if msg["role"] == "user" else "model"
+            contents_payload.append({"role": r, "parts": [{"text": msg["content"]}]})
             
-        chat_contents.append({"role": "user", "parts": [last_user_msg]})
+        payload = {
+            "systemInstruction": {"parts": [{"text": full_system_prompt}]},
+            "contents": contents_payload
+        }
         
-        response = await asyncio.to_thread(
-            model_instance.generate_content,
-            chat_contents,
-            stream=True
-        )
-        for chunk in response:
-            if chunk.text:
-                yield chunk.text
+        last_error = None
+        async with httpx.AsyncClient() as client:
+            # Query available models for this specific API key
+            candidate_models = []
+            req_model = (model or "gemini-1.5-flash").replace("models/", "")
+            candidate_models.append(req_model)
+            candidate_models.append(f"models/{req_model}")
+            
+            try:
+                list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+                l_res = await client.get(list_url, timeout=10.0)
+                if l_res.status_code == 200:
+                    m_data = l_res.json()
+                    for m_info in m_data.get("models", []):
+                        if "generateContent" in m_info.get("supportedGenerationMethods", []):
+                            raw_name = m_info.get("name", "")
+                            clean_name = raw_name.replace("models/", "")
+                            if clean_name not in candidate_models:
+                                candidate_models.append(clean_name)
+                            if raw_name not in candidate_models:
+                                candidate_models.append(raw_name)
+            except Exception as ex:
+                print(f"Model listing fallback notice: {ex}")
+                
+            # Add hardcoded fallbacks if list failed
+            for fb in ["gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash-8b", "gemini-1.5-pro", "models/gemini-1.5-flash"]:
+                if fb not in candidate_models:
+                    candidate_models.append(fb)
+                    
+            seen = set()
+            unique_candidates = [m for m in candidate_models if not (m in seen or seen.add(m))]
+            
+            for m_name in unique_candidates:
+                # Format URL
+                endpoint_model = m_name if m_name.startswith("models/") else f"models/{m_name}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/{endpoint_model}:streamGenerateContent?alt=sse&key={api_key}"
+                try:
+                    async with client.stream("POST", url, headers={"Content-Type": "application/json"}, json=payload, timeout=60.0) as response:
+                        if response.status_code != 200:
+                            err_body = await response.aread()
+                            last_error = RuntimeError(f"HTTP {response.status_code}: {err_body.decode('utf-8', errors='ignore')}")
+                            continue
+                        
+                        has_yielded = False
+                        async for line in response.aiter_lines():
+                            trimmed = line.strip()
+                            if not trimmed:
+                                continue
+                            if trimmed.startswith("data: "):
+                                data_str = trimmed[6:]
+                                try:
+                                    data = json.loads(data_str)
+                                    candidates = data.get("candidates", [])
+                                    if candidates:
+                                        parts = candidates[0].get("content", {}).get("parts", [])
+                                        for p in parts:
+                                            txt = p.get("text", "")
+                                            if txt:
+                                                has_yielded = True
+                                                yield txt
+                                except Exception:
+                                    pass
+                        if has_yielded:
+                            return
+                except Exception as err:
+                    last_error = err
+                    continue
+                    
+        if last_error:
+            raise last_error
                 
     elif provider == "openai":
         if not api_key:
@@ -795,18 +863,36 @@ async def extract_memory_and_skills_from_dialogue(
             if not api_key:
                 return [], []
             genai.configure(api_key=api_key)
-            model_name = model or "gemini-1.5-flash"
+            req_model = (model or "gemini-1.5-flash").replace("models/", "")
+            candidate_models = [
+                req_model,
+                "gemini-1.5-flash-latest",
+                "gemini-1.5-flash-001",
+                "gemini-1.5-flash-002",
+                "gemini-2.0-flash-exp",
+                "gemini-2.0-flash-001",
+                "gemini-1.5-flash-8b-latest",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro-latest",
+                "gemini-1.5-pro"
+            ]
+            seen = set()
+            unique_candidates = [m for m in candidate_models if not (m in seen or seen.add(m))]
             
-            # Request JSON output format
-            model_instance = genai.GenerativeModel(
-                model_name=model_name,
-                generation_config={"response_mime_type": "application/json"}
-            )
-            response = await asyncio.to_thread(
-                model_instance.generate_content,
-                extraction_prompt
-            )
-            response_text = response.text
+            for m_name in unique_candidates:
+                try:
+                    model_instance = genai.GenerativeModel(
+                        model_name=m_name,
+                        generation_config={"response_mime_type": "application/json"}
+                    )
+                    response = await asyncio.to_thread(
+                        model_instance.generate_content,
+                        extraction_prompt
+                    )
+                    response_text = response.text
+                    break
+                except Exception:
+                    continue
             
         elif provider == "openai":
             if not api_key:

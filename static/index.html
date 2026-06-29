@@ -88,7 +88,7 @@
                     <input type="file" id="inline-file-input" accept=".pdf,.txt,.md" style="display: none;">
                     
                     <select id="chat-model-select" class="chat-model-select" title="Active Model">
-                        <option value="gemini">Gemini 1.5 Flash</option>
+                        <option value="gemini">Google Gemini</option>
                         <option value="openai">OpenAI GPT-4o-mini</option>
                         <option value="claude">Claude 3.5 Sonnet</option>
                         <option value="ollama">Ollama (Local)</option>
@@ -183,12 +183,21 @@
                         <div class="settings-group">
                             <label for="gemini-model">Generative Model</label>
                             <input type="text" id="gemini-model" value="gemini-1.5-flash" placeholder="e.g. gemini-1.5-flash" list="gemini-generative-datalist">
-                            <datalist id="gemini-generative-datalist"></datalist>
+                            <datalist id="gemini-generative-datalist">
+                                <option value="gemini-1.5-flash"></option>
+                                <option value="gemini-1.5-flash-latest"></option>
+                                <option value="gemini-2.0-flash"></option>
+                                <option value="gemini-1.5-flash-8b"></option>
+                                <option value="gemini-1.5-pro"></option>
+                            </datalist>
                         </div>
                         <div class="settings-group">
                             <label for="gemini-embed">Embedding Model</label>
                             <input type="text" id="gemini-embed" value="text-embedding-004" placeholder="e.g. text-embedding-004" list="gemini-embed-datalist">
-                            <datalist id="gemini-embed-datalist"></datalist>
+                            <datalist id="gemini-embed-datalist">
+                                <option value="text-embedding-004"></option>
+                                <option value="models/text-embedding-004"></option>
+                            </datalist>
                         </div>
                     </div>
 

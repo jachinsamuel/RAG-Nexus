@@ -1583,24 +1583,22 @@ body.settings-open::before {
     box-shadow: none !important;
     background: #0d1322 !important;
     padding: 16px !important;
-    overflow-x: auto !important;
     font-size: 13.5px !important;
     line-height: 1.6 !important;
     font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace !important;
     position: relative !important;
-}
-
-.message-content .code-container pre.wrap-lines {
     white-space: pre-wrap !important;
     word-wrap: break-word !important;
-    word-break: break-all !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
 }
 
 .message-content .code-container pre code {
     color: #e2e8f0 !important;
     font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace !important;
-    white-space: inherit !important;
-    word-break: inherit !important;
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
     font-size: 13.5px !important;
     line-height: 1.6 !important;
 }

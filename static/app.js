@@ -40,7 +40,10 @@ const state = {
     workspaceFiles: [],
     generatingConversations: {},
     activeStreams: {},
-    selectedAttachments: []
+    selectedAttachments: [],
+    promptHistory: [],
+    promptHistoryIndex: -1,
+    tempTypedPrompt: ''
 };
 
 // DOM Elements
@@ -757,6 +760,9 @@ async function activateConversation(id, title) {
         const res = await fetch(`/api/conversations/${id}/messages`);
         const data = await res.json();
         state.messages = data.map(m => ({ role: m.role, content: m.content }));
+        state.promptHistory = data.filter(m => m.role === 'user').map(m => m.content);
+        state.promptHistoryIndex = -1;
+        state.tempTypedPrompt = '';
         
         chatHistory.innerHTML = '';
         if (state.messages.length === 0) {
@@ -1176,10 +1182,8 @@ function parseMarkdown(text) {
             <div class="code-header">
                 <span class="code-lang">${cleanLang}</span>
                 <div class="code-actions">
-                    <button class="code-action-btn wrap-btn" onclick="toggleWordWrap(this)">Wrap</button>
                     <button class="code-action-btn copy-btn" onclick="copyToClipboard(this)">Copy</button>
                     <button class="code-action-btn download-btn" onclick="downloadCode(this, '${cleanLang}')">Download</button>
-                    <button class="code-action-btn save-ws-btn" onclick="saveToWorkspaceBlock(this, '${cleanLang}')">Save to WS</button>
                 </div>
             </div>
             <pre class="language-${cleanLang}"><code class="language-${cleanLang}">${code.trim()}</code></pre>
@@ -1398,6 +1402,13 @@ chatForm.addEventListener('submit', async (e) => {
         state.selectedAttachments = [];
         renderAttachmentChips();
     }
+    
+    // Save to prompt history
+    if (!state.promptHistory.length || state.promptHistory[state.promptHistory.length - 1] !== query) {
+        state.promptHistory.push(query);
+    }
+    state.promptHistoryIndex = -1;
+    state.tempTypedPrompt = '';
     
     queryInput.value = '';
     validateInputs();
@@ -1993,24 +2004,58 @@ function setupAutocomplete() {
     });
     
     queryInput.addEventListener('keydown', (e) => {
-        if (autocompleteDropdown.style.display === 'none') return;
-        
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            selectedIndex = (selectedIndex + 1) % filteredItems.length;
-            updateSelectedAutocomplete();
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            selectedIndex = (selectedIndex - 1 + filteredItems.length) % filteredItems.length;
-            updateSelectedAutocomplete();
-        } else if (e.key === 'Enter') {
-            if (selectedIndex >= 0 && selectedIndex < filteredItems.length) {
+        if (autocompleteDropdown && autocompleteDropdown.style.display !== 'none') {
+            if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                selectAutocompleteItem(filteredItems[selectedIndex]);
+                selectedIndex = (selectedIndex + 1) % filteredItems.length;
+                updateSelectedAutocomplete();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = (selectedIndex - 1 + filteredItems.length) % filteredItems.length;
+                updateSelectedAutocomplete();
+            } else if (e.key === 'Enter') {
+                if (selectedIndex >= 0 && selectedIndex < filteredItems.length) {
+                    e.preventDefault();
+                    selectAutocompleteItem(filteredItems[selectedIndex]);
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                hideAutocomplete();
             }
-        } else if (e.key === 'Escape') {
+            return;
+        }
+        
+        // Prompt History Navigation via ArrowUp / ArrowDown
+        if (e.key === 'ArrowUp') {
+            if (!state.promptHistory || state.promptHistory.length === 0) {
+                if (state.messages && state.messages.length > 0) {
+                    state.promptHistory = state.messages.filter(m => m.role === 'user').map(m => m.content);
+                }
+            }
+            if (!state.promptHistory || state.promptHistory.length === 0) return;
             e.preventDefault();
-            hideAutocomplete();
+            if (state.promptHistoryIndex === -1) {
+                state.tempTypedPrompt = queryInput.value;
+                state.promptHistoryIndex = state.promptHistory.length - 1;
+            } else if (state.promptHistoryIndex > 0) {
+                state.promptHistoryIndex--;
+            }
+            queryInput.value = state.promptHistory[state.promptHistoryIndex];
+            validateInputs();
+            setTimeout(() => queryInput.setSelectionRange(queryInput.value.length, queryInput.value.length), 0);
+        } else if (e.key === 'ArrowDown') {
+            if (state.promptHistoryIndex >= 0) {
+                e.preventDefault();
+                state.promptHistoryIndex++;
+                if (state.promptHistoryIndex >= state.promptHistory.length) {
+                    state.promptHistoryIndex = -1;
+                    queryInput.value = state.tempTypedPrompt || '';
+                } else {
+                    queryInput.value = state.promptHistory[state.promptHistoryIndex];
+                }
+                validateInputs();
+                setTimeout(() => queryInput.setSelectionRange(queryInput.value.length, queryInput.value.length), 0);
+            }
         }
     });
     
