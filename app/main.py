@@ -601,39 +601,37 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
         
         # 3. Retrieve matched profile memories
         all_memories = db.get_all_profile_memories()
-        matched_memories = []
-        if query_embedding is not None:
-            matched_memories = search_generic(
-                query_embedding=query_embedding,
-                items=all_memories,
-                top_k=5,
-                threshold=0.3
-            )
+        matched_memories = search_generic(
+            query_embedding=query_embedding,
+            items=all_memories,
+            top_k=5,
+            threshold=0.3,
+            query_text=query
+        )
         
         # 4. Retrieve matched learned skills
         all_skills = db.get_all_skills()
-        matched_skills = []
-        if query_embedding is not None:
-            matched_skills = search_generic(
-                query_embedding=query_embedding,
-                items=all_skills,
-                top_k=3,
-                threshold=0.3
-            )
+        matched_skills = search_generic(
+            query_embedding=query_embedding,
+            items=all_skills,
+            top_k=3,
+            threshold=0.3,
+            query_text=query
+        )
         
         # 5. Retrieve matched past dialogue topics (Episodic Recall)
         matched_messages = []
         if request.conversationId:
-            if query_embedding is not None:
-                all_past_msgs = db.get_all_messages_with_embeddings()
-                # Filter out current session messages to avoid feeding active dialogue back into prompt
-                past_msg_pool = [m for m in all_past_msgs if m["conversation_id"] != request.conversationId]
-                matched_messages = search_generic(
-                    query_embedding=query_embedding,
-                    items=past_msg_pool,
-                    top_k=3,
-                    threshold=0.4
-                )
+            all_past_msgs = db.get_all_messages_with_embeddings()
+            # Filter out current session messages to avoid feeding active dialogue back into prompt
+            past_msg_pool = [m for m in all_past_msgs if m["conversation_id"] != request.conversationId]
+            matched_messages = search_generic(
+                query_embedding=query_embedding,
+                items=past_msg_pool,
+                top_k=3,
+                threshold=0.4,
+                query_text=query
+            )
             
             # Save user query to DB log (works even if query_embedding is None)
             db.add_message(

@@ -461,28 +461,58 @@ def search_generic(
     query_embedding: List[float], 
     items: List[Dict[str, Any]], 
     top_k: int, 
-    threshold: float
+    threshold: float,
+    query_text: str = None
 ) -> List[Dict[str, Any]]:
     """Generic cosine similarity search for lists of items containing 'embedding' keys.
-    Silently skips items whose embedding dimension doesn't match the query.
+    If query_embedding is None, performs keyword matching on all string values of the items as a fallback.
     """
-    if query_embedding is None:
-        return []
-    query_dim = len(query_embedding)
-    results = []
-    for item in items:
-        item_emb = item.get("embedding")
-        if not item_emb or len(item_emb) != query_dim:
-            continue
-        sim = cosine_similarity(query_embedding, item_emb)
-        if sim >= threshold:
-            # Strip out embedding vector representation to save memory/context footprint
-            item_copy = {k: v for k, v in item.items() if k != "embedding"}
-            item_copy["similarity"] = sim
-            results.append(item_copy)
+    if query_embedding is not None:
+        query_dim = len(query_embedding)
+        results = []
+        for item in items:
+            item_emb = item.get("embedding")
+            if not item_emb or len(item_emb) != query_dim:
+                continue
+            sim = cosine_similarity(query_embedding, item_emb)
+            if sim >= threshold:
+                # Strip out embedding vector representation to save memory/context footprint
+                item_copy = {k: v for k, v in item.items() if k != "embedding"}
+                item_copy["similarity"] = sim
+                results.append(item_copy)
+                
+        results.sort(key=lambda x: x["similarity"], reverse=True)
+        return results[:top_k]
+        
+    elif query_text:
+        # Keyword-based fallback search
+        import re
+        query_tokens = set(re.findall(r'\w+', query_text.lower()))
+        if not query_tokens:
+            return []
             
-    results.sort(key=lambda x: x["similarity"], reverse=True)
-    return results[:top_k]
+        results = []
+        for item in items:
+            text_parts = []
+            for k, v in item.items():
+                if k not in ["id", "embedding", "created_at"] and isinstance(v, str):
+                    text_parts.append(v.lower())
+            item_text = " ".join(text_parts)
+            
+            score = 0.0
+            for token in query_tokens:
+                if token in item_text:
+                    score += 1.0 + item_text.count(token) * 0.1
+            if score > 0:
+                item_copy = {k: v for k, v in item.items() if k != "embedding"}
+                # Normalize similarity score
+                item_copy["similarity"] = min(0.99, score / (len(query_tokens) + 1))
+                results.append(item_copy)
+                
+        results.sort(key=lambda x: x["similarity"], reverse=True)
+        return results[:top_k]
+        
+    return []
 
 def extract_text_from_file(file_content: bytes, filename: str) -> str:
     """Extracts raw text from PDF, TXT or MD files."""
@@ -862,37 +892,62 @@ async def extract_memory_and_skills_from_dialogue(
         if provider == "gemini":
             if not api_key:
                 return [], []
-            genai.configure(api_key=api_key)
-            req_model = (model or "gemini-1.5-flash").replace("models/", "")
-            candidate_models = [
-                req_model,
-                "gemini-1.5-flash-latest",
-                "gemini-1.5-flash-001",
-                "gemini-1.5-flash-002",
-                "gemini-2.0-flash-exp",
-                "gemini-2.0-flash-001",
-                "gemini-1.5-flash-8b-latest",
-                "gemini-1.5-flash",
-                "gemini-1.5-pro-latest",
-                "gemini-1.5-pro"
-            ]
-            seen = set()
-            unique_candidates = [m for m in candidate_models if not (m in seen or seen.add(m))]
             
-            for m_name in unique_candidates:
+            payload = {
+                "contents": [{"parts": [{"text": extraction_prompt}]}],
+                "generationConfig": {"responseMimeType": "application/json"}
+            }
+            
+            async with httpx.AsyncClient() as client:
+                candidate_models = []
+                req_model = (model or "gemini-1.5-flash").replace("models/", "")
+                candidate_models.append(req_model)
+                candidate_models.append(f"models/{req_model}")
+                
                 try:
-                    model_instance = genai.GenerativeModel(
-                        model_name=m_name,
-                        generation_config={"response_mime_type": "application/json"}
-                    )
-                    response = await asyncio.to_thread(
-                        model_instance.generate_content,
-                        extraction_prompt
-                    )
-                    response_text = response.text
-                    break
+                    list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+                    l_res = await client.get(list_url, timeout=10.0)
+                    if l_res.status_code == 200:
+                        m_data = l_res.json()
+                        for m_info in m_data.get("models", []):
+                            if "generateContent" in m_info.get("supportedGenerationMethods", []):
+                                raw_name = m_info.get("name", "")
+                                clean_name = raw_name.replace("models/", "")
+                                if clean_name not in candidate_models:
+                                    candidate_models.append(clean_name)
+                                if raw_name not in candidate_models:
+                                    candidate_models.append(raw_name)
                 except Exception:
-                    continue
+                    pass
+                    
+                for fb in ["gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash-8b", "gemini-1.5-pro", "models/gemini-1.5-flash"]:
+                    if fb not in candidate_models:
+                        candidate_models.append(fb)
+                        
+                seen = set()
+                unique_candidates = [m for m in candidate_models if not (m in seen or seen.add(m))]
+                
+                for m_name in unique_candidates:
+                    endpoint_model = m_name if m_name.startswith("models/") else f"models/{m_name}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/{endpoint_model}:generateContent?key={api_key}"
+                    try:
+                        res = await client.post(
+                            url,
+                            headers={"Content-Type": "application/json"},
+                            json=payload,
+                            timeout=60.0
+                        )
+                        if res.status_code == 200:
+                            data = res.json()
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                if parts:
+                                    response_text = parts[0].get("text", "")
+                                    if response_text.strip():
+                                        break
+                    except Exception:
+                        continue
             
         elif provider == "openai":
             if not api_key:
@@ -1024,7 +1079,11 @@ async def search_ddg(query: str, max_results: int = 5) -> List[Dict[str, str]]:
             html = response.text
             
             results = []
-            blocks = html.split('class="result results_links results_links_deep web-result "')
+            # Split results by the web-result class wrapper with robust regex spacing support
+            blocks = re.split(r'class="result results_links results_links_deep web-result\s*"', html)
+            if len(blocks) <= 1:
+                # Try fallback split in case classes are simplified or ordered differently
+                blocks = re.split(r'class="[^"]*web-result[^"]*"', html)
             
             for block in blocks[1:max_results+1]:
                 url_match = re.search(r'href="([^"]+)"', block)
@@ -1042,7 +1101,9 @@ async def search_ddg(query: str, max_results: int = 5) -> List[Dict[str, str]]:
                 title = title_match.group(1) if title_match else "No Title"
                 title = re.sub(r'<[^>]+>', '', title).strip()
                 
-                snippet_match = re.search(r'class="result__snippet"[^>]*>([\s\S]*?)</a>', block)
+                snippet_match = re.search(r'class="result__snippet"[^>]*>([\s\S]*?)(?:</a>|</div>)', block)
+                if not snippet_match:
+                    snippet_match = re.search(r'class="result__snippet"[^>]*>([\s\S]*?)$', block)
                 snippet = snippet_match.group(1) if snippet_match else ""
                 snippet = re.sub(r'<[^>]+>', '', snippet).strip()
                 
