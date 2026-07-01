@@ -551,6 +551,7 @@ async def generate_response_stream(
         "NEVER output disclaimers about hosting, server deployment, or domain registration. "
         "INSTEAD, immediately write and output complete, production-ready, beautiful HTML/CSS/JS code blocks in Markdown syntax (```html ... ```) "
         "so the user can copy, save, or run the code directly. "
+        "You must NEVER use emojis under any circumstances in your responses. Keep all text highly professional, clean, and developer-oriented. "
         "If source document context is provided, integrate relevant details from it; otherwise, use your full software engineering capabilities."
     )
     full_system_prompt = system_prompt or default_system
