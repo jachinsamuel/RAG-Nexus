@@ -547,13 +547,19 @@ async def generate_response_stream(
     
     default_system = (
         "You are Nexus, an expert full-stack AI engineer and senior web developer. "
-        "When the user asks to generate, build, or create a website, application, or code script (e.g. HTML, CSS, JavaScript, Python, React, etc.), "
-        "NEVER output disclaimers about hosting, server deployment, or domain registration. "
-        "INSTEAD, immediately write and output complete, production-ready, beautiful HTML/CSS/JS code blocks in Markdown syntax (```html ... ```) "
-        "so the user can copy, save, or run the code directly. "
+        "Your primary directive is to write and output high-quality, complete, production-ready code. "
+        "Never say 'I cannot create a website' or 'I cannot write/deploy files'. Always provide the exact HTML, CSS, JavaScript, Python, or shell code blocks. "
+        "If the user asks for a website or app, write a fully functional SPA (Single Page Application) combining styles and scripts directly, "
+        "or output clean separate files clearly. "
+        "Do NOT output disclaimers about hosting, servers, or domain registration. Get straight to the code. "
+        "Format all code blocks using correct Markdown syntax (e.g., ```html ... ```). "
         "You must NEVER use emojis under any circumstances in your responses. Keep all text highly professional, clean, and developer-oriented. "
-        "If source document context is provided, integrate relevant details from it; otherwise, use your full software engineering capabilities."
+        "If source document context is provided, ground your answers in it and cite relevant details; otherwise, use your full software engineering capabilities."
     )
+    # Apply local sliding window memory (keep last 10 messages verbatim) to prevent context/token limit overflows
+    if len(messages) > 10:
+        messages = messages[-10:]
+
     full_system_prompt = system_prompt or default_system
     
     # 1. Inject User Profile Memories / Preferences
@@ -599,7 +605,10 @@ async def generate_response_stream(
             
         payload = {
             "systemInstruction": {"parts": [{"text": full_system_prompt}]},
-            "contents": contents_payload
+            "contents": contents_payload,
+            "generationConfig": {
+                "maxOutputTokens": 8192
+            }
         }
         
         last_error = None
@@ -685,7 +694,8 @@ async def generate_response_stream(
         payload = {
             "model": model_name,
             "messages": openai_messages,
-            "stream": True
+            "stream": True,
+            "max_tokens": 4096
         }
         
         async with httpx.AsyncClient() as client:
@@ -816,7 +826,8 @@ async def generate_response_stream(
         payload = {
             "model": model_name,
             "messages": custom_messages,
-            "stream": True
+            "stream": True,
+            "max_tokens": 4096
         }
         
         headers = {"Content-Type": "application/json"}

@@ -1360,6 +1360,24 @@ queryInput.addEventListener('input', () => {
     updateTokenGauge();
 });
 
+async function retryLastMessage() {
+    let lastUserMessageIdx = -1;
+    for (let i = state.messages.length - 1; i >= 0; i--) {
+        if (state.messages[i].role === 'user') {
+            lastUserMessageIdx = i;
+            break;
+        }
+    }
+    if (lastUserMessageIdx === -1) return;
+    const lastQuery = state.messages[lastUserMessageIdx].content;
+    state.messages.splice(lastUserMessageIdx, 1);
+    
+    // Remove last pair from DOM if needed, but it's cleaner to just append a new bubble
+    queryInput.value = lastQuery;
+    chatForm.dispatchEvent(new Event('submit'));
+}
+window.retryLastMessage = retryLastMessage;
+
 // --- Chat Form Handler & Streaming API Integration ---
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1582,7 +1600,15 @@ chatForm.addEventListener('submit', async (e) => {
                     } else if (currentEvent === 'error') {
                         const err = JSON.parse(dataStr);
                         if (convId === state.activeConversationId) {
-                            stream.assistantContentDiv.innerHTML = `<span style="color: var(--red-alert);">Error: ${err}</span>`;
+                            stream.assistantContentDiv.innerHTML = `
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <span style="color: var(--red-alert); font-weight: 500;">Error: ${err}</span>
+                                    <button class="retry-btn" onclick="retryLastMessage()" style="align-self: flex-start; background: var(--accent-color); color: white; border: none; padding: 6px 14px; border-radius: 9999px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity 0.15s; margin-top: 4px;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                        Retry
+                                    </button>
+                                </div>
+                            `;
                         }
                     }
                 }
@@ -1628,7 +1654,15 @@ chatForm.addEventListener('submit', async (e) => {
         console.error(err);
         const stream = state.activeStreams[convId];
         if (stream && convId === state.activeConversationId) {
-            stream.assistantContentDiv.innerHTML = `<span style="color: var(--red-alert);">Error: ${err.message}</span>`;
+            stream.assistantContentDiv.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <span style="color: var(--red-alert); font-weight: 500;">Error: ${err.message || err}</span>
+                    <button class="retry-btn" onclick="retryLastMessage()" style="align-self: flex-start; background: var(--accent-color); color: white; border: none; padding: 6px 14px; border-radius: 9999px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity 0.15s; margin-top: 4px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        Retry
+                    </button>
+                </div>
+            `;
         }
     } finally {
         delete state.generatingConversations[convId];

@@ -25,6 +25,35 @@ from app.rag_engine import (
     search_ddg
 )
 
+def get_error_detail(ex: Exception) -> str:
+    import httpx
+    if isinstance(ex, httpx.HTTPStatusError):
+        try:
+            body = ex.response.read().decode("utf-8", errors="ignore")
+            import json
+            try:
+                data = json.loads(body)
+                if "error" in data:
+                    err_info = data["error"]
+                    if isinstance(err_info, dict) and "message" in err_info:
+                        return f"HTTP {ex.response.status_code}: {err_info['message']}"
+                    elif isinstance(err_info, str):
+                        return f"HTTP {ex.response.status_code}: {err_info}"
+            except Exception:
+                pass
+            if body.strip():
+                return f"HTTP {ex.response.status_code}: {body.strip()}"
+        except Exception:
+            pass
+        return f"HTTP Status {ex.response.status_code}"
+    elif isinstance(ex, httpx.RequestError):
+        return f"Network/API Timeout Error: {str(ex)}"
+    
+    msg = str(ex)
+    if not msg or msg.strip() == "":
+        return f"Unexpected error: {type(ex).__name__}"
+    return msg
+
 app = FastAPI(title="Nexus Cognitive Engine")
 db = Database()
 
@@ -862,7 +891,8 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                         print(f"Error: Failed to save assistant message to database: {db_ex}")
                     
             except Exception as ex:
-                yield f"event: error\ndata: {json.dumps(str(ex))}\n\n"
+                err_msg = get_error_detail(ex)
+                yield f"event: error\ndata: {json.dumps(err_msg)}\n\n"
                 
             yield "event: done\ndata: {}\n\n"
 
