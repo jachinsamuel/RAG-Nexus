@@ -1554,14 +1554,13 @@ chatForm.addEventListener('submit', async (e) => {
                         const stepDiv = document.createElement('div');
                         stepDiv.className = 'agent-step-log';
                         stepDiv.style.margin = '8px 0';
-                        stepDiv.style.padding = '6px 12px';
+                        stepDiv.style.padding = '8px 14px';
                         stepDiv.style.borderLeft = '3px solid var(--cyan-color)';
-                        stepDiv.style.fontFamily = "'Space Grotesk', sans-serif";
-                        stepDiv.style.fontSize = '11.5px';
-                        stepDiv.style.fontWeight = '700';
+                        stepDiv.style.fontSize = '12px';
+                        stepDiv.style.fontWeight = '600';
                         stepDiv.style.background = 'var(--bg-card)';
                         stepDiv.style.color = 'var(--text-primary)';
-                        stepDiv.style.borderRadius = '2px';
+                        stepDiv.style.borderRadius = '8px';
                         stepDiv.innerHTML = `&raquo; [${step.agent.toUpperCase()}] &nbsp;${step.message}`;
                         
                         if (convId === state.activeConversationId) {
@@ -1666,7 +1665,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             applyAppearance(theme);
             localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
             showToast("Appearance applied & saved!", "success");
-            closeDrawer();
+            closeDrawer(settingsDrawer);
         });
     }
     
