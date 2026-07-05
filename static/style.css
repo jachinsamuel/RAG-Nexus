@@ -9,59 +9,60 @@
 
 /* --- DARK GLASS THEME (DEFAULT PREMUM MIDNIGHT) --- */
 body, body.theme-dark, body.dark-theme {
-    --bg-main: #0b0f19;
-    --bg-panel: rgba(18, 24, 38, 0.75);
-    --bg-card: rgba(30, 41, 59, 0.5);
-    --bg-card-hover: rgba(51, 65, 85, 0.75);
-    --bg-input: rgba(15, 23, 42, 0.6);
+    --bg-main: #05070f;
+    --bg-panel: rgba(10, 15, 30, 0.45);
+    --bg-card: rgba(255, 255, 255, 0.05);
+    --bg-card-hover: rgba(255, 255, 255, 0.09);
+    --bg-input: rgba(0, 0, 0, 0.4);
     --text-input: #f8fafc;
-    --placeholder-input: #94a3b8;
-    --border-input: rgba(255, 255, 255, 0.12);
-    --border-color: rgba(255, 255, 255, 0.1);
-    --border-thin: rgba(255, 255, 255, 0.08);
+    --placeholder-input: #64748b;
+    --border-input: rgba(255, 255, 255, 0.08);
+    --border-color: rgba(255, 255, 255, 0.07);
+    --border-thin: rgba(255, 255, 255, 0.04);
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --accent-color: #3b82f6;
-    --accent-color-hover: #2563eb;
+    --accent-color: #0a84ff;
+    --accent-color-hover: #007aff;
     --cyan-color: #60a5fa;
     --cyan-color-hover: #3b82f6;
-    --glass-blur: blur(16px) saturate(150%);
-    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
+    --glass-blur: blur(28px) saturate(190%);
+    --glass-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     
-    background-color: #0b0f19;
+    background-color: #05070f;
     background-image: 
-        radial-gradient(at 10% 10%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-        radial-gradient(at 90% 90%, rgba(37, 99, 235, 0.12) 0px, transparent 50%);
+        radial-gradient(at 0% 0%, rgba(10, 132, 255, 0.18) 0px, transparent 45%),
+        radial-gradient(at 100% 100%, rgba(0, 122, 255, 0.12) 0px, transparent 45%),
+        radial-gradient(at 50% 50%, rgba(96, 165, 250, 0.04) 0px, transparent 60%);
     background-attachment: fixed;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     color: var(--text-primary);
 }
 
 /* --- LIGHT GLASS THEME (CLEAN STUDIO) --- */
 body.theme-light {
-    --bg-main: #f8fafc;
-    --bg-panel: rgba(255, 255, 255, 0.85);
-    --bg-card: #ffffff;
-    --bg-card-hover: rgba(241, 245, 249, 0.9);
-    --bg-input: #ffffff;
+    --bg-main: #f4f7fa;
+    --bg-panel: rgba(255, 255, 255, 0.55);
+    --bg-card: rgba(255, 255, 255, 0.6);
+    --bg-card-hover: rgba(255, 255, 255, 0.85);
+    --bg-input: rgba(255, 255, 255, 0.7);
     --text-input: #0f172a;
     --placeholder-input: #94a3b8;
-    --border-input: rgba(0, 0, 0, 0.12);
-    --border-color: rgba(0, 0, 0, 0.08);
-    --border-thin: rgba(0, 0, 0, 0.05);
+    --border-input: rgba(0, 0, 0, 0.08);
+    --border-color: rgba(0, 0, 0, 0.05);
+    --border-thin: rgba(0, 0, 0, 0.03);
     --text-primary: #0f172a;
     --text-secondary: #64748b;
-    --accent-color: #2563eb;
-    --accent-color-hover: #1d4ed8;
+    --accent-color: #007aff;
+    --accent-color-hover: #005ecb;
     --cyan-color: #3b82f6;
     --cyan-color-hover: #2563eb;
-    --glass-blur: blur(16px) saturate(150%);
-    --glass-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.06);
+    --glass-blur: blur(28px) saturate(190%);
+    --glass-shadow: 0 12px 30px 0 rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5);
     
-    background-color: #f8fafc;
+    background-color: #f4f7fa;
     background-image: 
-        radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.08) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.06) 0px, transparent 50%);
+        radial-gradient(at 0% 0%, rgba(0, 122, 255, 0.07) 0px, transparent 40%),
+        radial-gradient(at 100% 100%, rgba(96, 165, 250, 0.04) 0px, transparent 40%);
     background-attachment: fixed;
 }
 
@@ -1020,8 +1021,13 @@ body {
     background: var(--bg-card);
 }
 .chat-model-select option {
-    background: var(--bg-panel);
-    color: var(--text-primary);
+    background: #121826;
+    color: #f8fafc;
+}
+
+body.theme-light .chat-model-select option {
+    background: #ffffff;
+    color: #0f172a;
 }
 
 .chat-input-form button[type="submit"] {
@@ -1325,17 +1331,50 @@ body.settings-open::before {
 
 .settings-group input[type="text"],
 .settings-group input[type="password"],
-.settings-group select,
 .settings-group textarea {
     background: var(--bg-input);
     border: 1px solid var(--border-input);
     border-radius: 10px;
     padding: 10px 14px;
     color: var(--text-input);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 13.5px;
     outline: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settings-group select {
+    background: var(--bg-input);
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+    padding: 10px 36px 10px 14px;
+    color: var(--text-input);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13.5px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+}
+
+body.theme-light .settings-group select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+.settings-group select option {
+    background-color: #121826;
+    color: #f8fafc;
+}
+
+body.theme-light .settings-group select option {
+    background-color: #ffffff;
+    color: #0f172a;
 }
 
 .settings-group input::placeholder,
@@ -1729,11 +1768,11 @@ body.settings-open::before {
     background: var(--bg-card-hover);
 }
 .modal-btn.confirm {
-    background: var(--red-alert);
+    background: var(--accent-color);
     color: #ffffff;
 }
 .modal-btn.confirm:hover {
-    background: #e11d48;
+    background: var(--accent-color-hover);
 }
 @keyframes modalFadeIn {
     from { opacity: 0; }

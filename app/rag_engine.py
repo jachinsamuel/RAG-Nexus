@@ -605,10 +605,7 @@ async def generate_response_stream(
             
         payload = {
             "systemInstruction": {"parts": [{"text": full_system_prompt}]},
-            "contents": contents_payload,
-            "generationConfig": {
-                "maxOutputTokens": 8192
-            }
+            "contents": contents_payload
         }
         
         last_error = None
@@ -694,8 +691,7 @@ async def generate_response_stream(
         payload = {
             "model": model_name,
             "messages": openai_messages,
-            "stream": True,
-            "max_tokens": 4096
+            "stream": True
         }
         
         async with httpx.AsyncClient() as client:
@@ -826,8 +822,7 @@ async def generate_response_stream(
         payload = {
             "model": model_name,
             "messages": custom_messages,
-            "stream": True,
-            "max_tokens": 4096
+            "stream": True
         }
         
         headers = {"Content-Type": "application/json"}

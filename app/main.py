@@ -47,7 +47,10 @@ def get_error_detail(ex: Exception) -> str:
             pass
         return f"HTTP Status {ex.response.status_code}"
     elif isinstance(ex, httpx.RequestError):
-        return f"Network/API Timeout Error: {str(ex)}"
+        detail = str(ex)
+        if not detail or detail.strip() == "":
+            detail = "Connection timed out. Make sure the API provider endpoint is active, your internet is connected, and any local/custom models are fully loaded and running."
+        return f"Network/API Timeout Error: {detail}"
     
     msg = str(ex)
     if not msg or msg.strip() == "":
