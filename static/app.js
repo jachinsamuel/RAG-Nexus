@@ -175,6 +175,14 @@ function showPrompt(title, defaultValue = '') {
     return new Promise((resolve) => {
         const modal = document.getElementById('prompt-modal');
         const input = document.getElementById('prompt-input');
+        const okBtn = document.getElementById('prompt-ok-btn');
+        const cancelBtn = document.getElementById('prompt-cancel-btn');
+        
+        if (!modal || !input || !okBtn || !cancelBtn) {
+            resolve(defaultValue);
+            return;
+        }
+        
         document.getElementById('prompt-title').textContent = title;
         input.value = defaultValue;
         
@@ -205,6 +213,7 @@ function showPrompt(title, defaultValue = '') {
             }
         };
         
+        okBtn.addEventListener('click', handleOk);
         cancelBtn.addEventListener('click', handleCancel);
         input.addEventListener('keypress', handleKeypress);
     });
