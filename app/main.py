@@ -22,7 +22,9 @@ from app.rag_engine import (
     search_generic,
     generate_response_stream,
     extract_memory_and_skills_from_dialogue,
-    search_ddg
+    search_ddg,
+    rewrite_query_for_retrieval,
+    rerank_chunks_lexical
 )
 
 def get_error_detail(ex: Exception) -> str:
@@ -605,11 +607,28 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
             raise HTTPException(status_code=400, detail="No conversation messages found.")
         query = request.messages[-1].content
         
+        # Optimize search query using history (Conversational Query Reformulation)
+        search_query = query
+        try:
+            history_messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+            search_query = await rewrite_query_for_retrieval(
+                messages=history_messages,
+                current_query=query,
+                provider=request.provider,
+                api_key=request.apiKey,
+                ollama_url=request.ollamaUrl,
+                model=request.chatModel
+            )
+            if search_query != query:
+                print(f"Info: Optimized search query: '{query}' -> '{search_query}'")
+        except Exception as e:
+            print(f"Warning: Failed to optimize query for retrieval: {e}")
+            
         # 1. Embed user query
         query_embedding = None
         try:
             query_embedding = await get_embedding(
-                text=query,
+                text=search_query,
                 provider=request.provider,
                 api_key=request.apiKey,
                 ollama_url=request.ollamaUrl,
@@ -622,14 +641,20 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
         all_chunks = db.get_all_chunks()
         context_chunks = []
         chunk_dim_mismatches = 0
+        
+        # Retrieve a larger candidate pool (e.g. 3x of topK, capped at 25) for reranking
+        candidate_k = min(25, max(15, request.topK * 3))
         context_chunks, chunk_dim_mismatches = await search_hybrid(
-            query_text=query,
+            query_text=search_query,
             query_embedding=query_embedding,
             chunks=all_chunks,
-            top_k=request.topK,
+            top_k=candidate_k,
             threshold=request.threshold,
             retrieval_strategy=request.retrievalStrategy or "hybrid"
         )
+        
+        # Apply term density reranking to get the final topK most relevant chunks
+        context_chunks = rerank_chunks_lexical(query=search_query, chunks=context_chunks, top_n=request.topK)
         
         # 3. Retrieve matched profile memories
         all_memories = db.get_all_profile_memories()

@@ -205,13 +205,102 @@ function showPrompt(title, defaultValue = '') {
             }
         };
         
-        const okBtn = document.getElementById('prompt-ok-btn');
-        const cancelBtn = document.getElementById('prompt-cancel-btn');
-        
-        okBtn.addEventListener('click', handleOk);
         cancelBtn.addEventListener('click', handleCancel);
         input.addEventListener('keypress', handleKeypress);
     });
+}
+
+// Custom Modal Diff System returning a Promise
+let diffResolve = null;
+function showDiffModal(oldContent, newContent) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('diff-modal');
+        const container = document.getElementById('diff-container-pane');
+        if (!modal || !container) {
+            resolve(true); // Fallback
+            return;
+        }
+        
+        container.innerHTML = generateSimpleDiffHTML(oldContent, newContent);
+        modal.style.display = 'flex';
+        diffResolve = resolve;
+    });
+}
+
+const diffCancelBtn = document.getElementById('diff-cancel-btn');
+if (diffCancelBtn) {
+    diffCancelBtn.addEventListener('click', () => {
+        document.getElementById('diff-modal').style.display = 'none';
+        if (diffResolve) diffResolve(false);
+        diffResolve = null;
+    });
+}
+
+const diffConfirmBtn = document.getElementById('diff-confirm-btn');
+if (diffConfirmBtn) {
+    diffConfirmBtn.addEventListener('click', () => {
+        document.getElementById('diff-modal').style.display = 'none';
+        if (diffResolve) diffResolve(true);
+        diffResolve = null;
+    });
+}
+
+function generateSimpleDiffHTML(oldText, newText) {
+    const oldLines = (oldText || '').split('\n');
+    const newLines = (newText || '').split('\n');
+    
+    const dp = Array(oldLines.length + 1).fill(null).map(() => Array(newLines.length + 1).fill(0));
+    for (let i = 1; i <= oldLines.length; i++) {
+        for (let j = 1; j <= newLines.length; j++) {
+            if (oldLines[i - 1] === newLines[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+    
+    let i = oldLines.length;
+    let j = newLines.length;
+    const diff = [];
+    
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+            diff.unshift({ type: 'unchanged', text: oldLines[i - 1] });
+            i--;
+            j--;
+        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            diff.unshift({ type: 'added', text: newLines[j - 1] });
+            j--;
+        } else {
+            diff.unshift({ type: 'removed', text: oldLines[i - 1] });
+            i--;
+        }
+    }
+    
+    let html = '<div style="font-family: \'Courier New\', Courier, monospace; font-size: 12px; line-height: 1.6; max-height: 350px; overflow-y: auto; text-align: left; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; white-space: pre; border: 1px solid var(--border-color);">';
+    diff.forEach((line) => {
+        let bgColor = 'transparent';
+        let prefix = ' ';
+        let textColor = 'inherit';
+        if (line.type === 'added') {
+            bgColor = 'rgba(16, 185, 129, 0.15)';
+            textColor = '#10b981';
+            prefix = '+';
+        } else if (line.type === 'removed') {
+            bgColor = 'rgba(244, 63, 94, 0.15)';
+            textColor = '#f43f5e';
+            prefix = '-';
+        }
+        
+        const escapedText = escapeHtml(line.text);
+        html += `<div style="background-color: ${bgColor}; color: ${textColor}; padding: 1px 4px; display: flex; gap: 8px; border-radius: 2px;">` +
+                `<span style="opacity: 0.5; width: 14px; user-select: none;">${prefix}</span>` +
+                `<span style="flex: 1; white-space: pre-wrap; word-break: break-all;">${escapedText}</span>` +
+                `</div>`;
+    });
+    html += '</div>';
+    return html;
 }
 
 // Helper to compute correct embedding credentials depending on provider
@@ -1802,8 +1891,33 @@ window.saveToWorkspaceBlock = async function(button, lang) {
     if (!targetPath) return;
     
     button.disabled = true;
-    button.textContent = 'Saving...';
+    button.textContent = 'Comparing...';
+    
     try {
+        let oldContent = "";
+        try {
+            const checkResp = await fetch(`/api/workspace/file?path=${encodeURIComponent(targetPath)}`);
+            if (checkResp.ok) {
+                const checkData = await checkResp.json();
+                if (checkData.status === 'success') {
+                    oldContent = checkData.content || "";
+                }
+            }
+        } catch (e) {
+            console.log("Treating as new file.", e);
+        }
+        
+        if (oldContent && oldContent.trim() !== "") {
+            button.textContent = 'Reviewing...';
+            const confirmed = await showDiffModal(oldContent, rawCode);
+            if (!confirmed) {
+                showToast("Save cancelled.", "info");
+                button.textContent = 'Save to WS';
+                return;
+            }
+        }
+        
+        button.textContent = 'Saving...';
         const resp = await fetch('/api/workspace/file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2116,16 +2230,33 @@ function showAutocomplete(char, query) {
                 type: 'file',
                 value: f.path
             }));
-        } else {
-            // Filter skills
-            filteredItems = state.skills.filter(s => s.name.toLowerCase().includes(query)).map(s => ({
+        } else if (query.startsWith('skills ') || query === 'skills') {
+            let skillQuery = '';
+            if (query.startsWith('skills ')) skillQuery = query.substring(7);
+            filteredItems = state.skills.filter(s => s.name.toLowerCase().includes(skillQuery)).map(s => ({
                 name: s.name,
                 type: 'skill',
                 value: s.name + ': ' + s.description
             }));
+        } else {
+            const commands = [
+                { name: '/file', type: 'cmd', desc: 'Attach workspace file', value: '/file' },
+                { name: '/web', type: 'cmd', desc: 'Force web search retrieval', value: '/web' },
+                { name: '/memo', type: 'cmd', desc: 'Reference memory fact', value: '/memo' },
+                { name: '/skills', type: 'cmd', desc: 'Browse learned skills', value: '/skills' },
+                { name: '/agent', type: 'cmd', desc: 'Toggle agent execution mode', value: '/agent' }
+            ];
+            filteredItems = commands.filter(c => c.name.toLowerCase().includes('/' + query));
+            
+            if (filteredItems.length === 0) {
+                filteredItems = state.skills.filter(s => s.name.toLowerCase().includes(query)).map(s => ({
+                    name: s.name,
+                    type: 'skill',
+                    value: s.name + ': ' + s.description
+                }));
+            }
         }
     } else if (char === '@') {
-        // Filter documents
         filteredItems = state.documents.filter(d => d.name && d.name.toLowerCase().includes(query)).map(d => ({
             name: d.name,
             type: 'doc',
@@ -2141,9 +2272,10 @@ function showAutocomplete(char, query) {
     filteredItems.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'autocomplete-item';
+        const descText = item.desc ? `<small style="color: var(--text-secondary); margin-left: 8px; font-weight: normal;">${item.desc}</small>` : '';
         div.innerHTML = `
             <span class="item-type">${item.type}</span>
-            <span class="item-name">${item.name}</span>
+            <span class="item-name">${item.name} ${descText}</span>
         `;
         div.addEventListener('click', () => {
             selectAutocompleteItem(item);
@@ -2181,15 +2313,49 @@ function selectAutocompleteItem(item) {
     
     const text = queryInput.value;
     const cursorPosition = queryInput.selectionStart;
-    
     const beforeTrigger = text.slice(0, triggerIndex);
     const afterCursor = text.slice(cursorPosition);
     
-    // Insert autocomplete value
+    if (item.type === 'cmd') {
+        if (item.name === '/file') {
+            queryInput.value = beforeTrigger + '/file ' + afterCursor;
+            const newPos = triggerIndex + 6;
+            queryInput.setSelectionRange(newPos, newPos);
+            showAutocomplete('/', 'file ');
+        } else if (item.name === '/skills') {
+            queryInput.value = beforeTrigger + '/skills ' + afterCursor;
+            const newPos = triggerIndex + 8;
+            queryInput.setSelectionRange(newPos, newPos);
+            showAutocomplete('/', 'skills ');
+        } else if (item.name === '/web') {
+            const strategySelect = document.getElementById('retrieval-strategy-select') || document.querySelector('[name="strategy"]');
+            if (strategySelect) {
+                strategySelect.value = 'web';
+                strategySelect.dispatchEvent(new Event('change'));
+            }
+            queryInput.value = beforeTrigger + afterCursor;
+            showToast("Search strategy set to Web Search", "success");
+            hideAutocomplete();
+        } else if (item.name === '/agent') {
+            if (agentToggleBtn) {
+                agentToggleBtn.click();
+            }
+            queryInput.value = beforeTrigger + afterCursor;
+            hideAutocomplete();
+        } else {
+            queryInput.value = beforeTrigger + item.name + ' ' + afterCursor;
+            const newCursorPos = triggerIndex + item.name.length + 1;
+            queryInput.setSelectionRange(newCursorPos, newCursorPos);
+            hideAutocomplete();
+        }
+        validateInputs();
+        queryInput.focus();
+        return;
+    }
+    
     const insertion = triggerChar + item.name;
     queryInput.value = beforeTrigger + insertion + ' ' + afterCursor;
     
-    // Position cursor after the completed term
     const newCursorPos = triggerIndex + insertion.length + 1;
     queryInput.setSelectionRange(newCursorPos, newCursorPos);
     

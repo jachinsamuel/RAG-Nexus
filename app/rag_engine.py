@@ -12,22 +12,67 @@ from typing import List, Dict, Any, Generator, Tuple
 from pypdf import PdfReader
 
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
-    """Splits text into chunks of specified size and overlap."""
+    """Splits text into chunks by grouping sentences together to avoid mid-sentence breaks."""
     if not text:
         return []
+        
+    import re
+    # Split text into sentences, preserving sentence boundaries
+    sentence_ends = re.compile(r'(?<=[.!?])\s+')
+    sentences = sentence_ends.split(text)
     
     chunks = []
-    start = 0
-    text_len = len(text)
+    current_chunk = []
+    current_length = 0
     
-    while start < text_len:
-        end = start + chunk_size
-        chunk = text[start:end]
-        chunks.append(chunk)
-        start += (chunk_size - chunk_overlap)
-        if chunk_overlap >= chunk_size:
-            start += chunk_size
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
             
+        sentence_len = len(sentence)
+        
+        # If a single sentence is larger than chunk_size, split it by characters as fallback
+        if sentence_len > chunk_size:
+            # Output whatever we have in the current chunk first
+            if current_chunk:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = []
+                current_length = 0
+            
+            # Split the giant sentence by character chunks
+            start = 0
+            while start < sentence_len:
+                end = start + chunk_size
+                chunks.append(sentence[start:end])
+                start += (chunk_size - chunk_overlap)
+            continue
+            
+        # Check if adding this sentence exceeds chunk_size
+        if current_length + sentence_len + (1 if current_chunk else 0) > chunk_size:
+            chunks.append(" ".join(current_chunk))
+            
+            # Start a new chunk, incorporating overlap
+            # Overlap: keep the last few sentences whose combined length is <= chunk_overlap
+            overlap_chunk = []
+            overlap_length = 0
+            for prev_sentence in reversed(current_chunk):
+                prev_len = len(prev_sentence)
+                if overlap_length + prev_len + (1 if overlap_chunk else 0) <= chunk_overlap:
+                    overlap_chunk.insert(0, prev_sentence)
+                    overlap_length += prev_len + (1 if overlap_chunk else 0)
+                else:
+                    break
+            
+            current_chunk = overlap_chunk
+            current_length = overlap_length
+            
+        current_chunk.append(sentence)
+        current_length += sentence_len + (1 if len(current_chunk) > 1 else 0)
+        
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+        
     return chunks
 
 async def get_embedding(
@@ -1124,3 +1169,231 @@ async def search_ddg(query: str, max_results: int = 5) -> List[Dict[str, str]]:
     except Exception as e:
         print(f"DuckDuckGo keyless search failed: {e}")
         return []
+
+async def rewrite_query_for_retrieval(
+    messages: List[Dict[str, str]],
+    current_query: str,
+    provider: str,
+    api_key: str = None,
+    ollama_url: str = None,
+    model: str = None
+) -> str:
+    """Uses a fast completion call to rewrite the user's latest query as a standalone search query,
+    resolving any pronouns or references based on the context of the recent message history.
+    """
+    if not messages or len(messages) <= 1:
+        return current_query
+
+    recent_history = messages[-4:] if len(messages) > 4 else messages
+    
+    history_text = ""
+    for msg in recent_history[:-1]:
+        role_label = "User" if msg["role"] == "user" else "Assistant"
+        content_preview = msg['content'][:300] + "..." if len(msg['content']) > 300 else msg['content']
+        history_text += f"{role_label}: {content_preview}\n"
+    
+    rewrite_prompt = (
+        "You are a search query optimizer. Given a conversation history and a new user message, "
+        "your task is to rewrite the new user message into a single, standalone search query "
+        "that fully captures the search intent, resolving pronouns (like 'it', 'them', 'that', 'this') or context "
+        "using the conversation history.\n\n"
+        "Rules:\n"
+        "1. Output ONLY the standalone search query. Do NOT write greetings, explanations, markdown blocks, quotes, or extra text.\n"
+        "2. Keep it concise (less than 10 words) and search-oriented.\n"
+        "3. Preserve technical terms, file names, or code identifiers exactly as they are.\n"
+        "4. If the message is already a standalone search query or doesn't refer to the history, output the original message exactly.\n\n"
+        f"Conversation History:\n{history_text}\n"
+        f"New User Message:\n{current_query}\n\n"
+        "Standalone search query:"
+    )
+
+    try:
+        response_text = ""
+        timeout_val = 4.0
+        
+        if provider == "gemini":
+            if not api_key:
+                return current_query
+            
+            payload = {
+                "contents": [{"parts": [{"text": rewrite_prompt}]}],
+            }
+            
+            async with httpx.AsyncClient() as client:
+                candidate_models = []
+                req_model = (model or "gemini-1.5-flash").replace("models/", "")
+                candidate_models.append(req_model)
+                candidate_models.append(f"models/{req_model}")
+                
+                for fb in ["gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash-8b", "models/gemini-1.5-flash"]:
+                    if fb not in candidate_models:
+                        candidate_models.append(fb)
+                        
+                seen = set()
+                unique_candidates = [m for m in candidate_models if not (m in seen or seen.add(m))]
+                
+                for m_name in unique_candidates:
+                    endpoint_model = m_name if m_name.startswith("models/") else f"models/{m_name}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/{endpoint_model}:generateContent?key={api_key}"
+                    try:
+                        res = await client.post(
+                            url,
+                            headers={"Content-Type": "application/json"},
+                            json=payload,
+                            timeout=timeout_val
+                        )
+                        if res.status_code == 200:
+                            data = res.json()
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                if parts:
+                                    response_text = parts[0].get("text", "")
+                                    if response_text.strip():
+                                        break
+                    except Exception:
+                        continue
+            
+        elif provider == "openai":
+            if not api_key:
+                return current_query
+            model_name = model or "gpt-4o-mini"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": rewrite_prompt}],
+                        "stream": False
+                    },
+                    timeout=timeout_val
+                )
+                response.raise_for_status()
+                data = response.json()
+                response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        elif provider == "claude":
+            claude_key = api_key
+            if api_key and "|||" in api_key:
+                claude_key, _, _ = api_key.split("|||")
+            if not claude_key:
+                return current_query
+            model_name = model or "claude-3-5-sonnet-latest"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": claude_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json"
+                    },
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": rewrite_prompt}],
+                        "max_tokens": 100,
+                        "stream": False
+                    },
+                    timeout=timeout_val
+                )
+                response.raise_for_status()
+                data = response.json()
+                response_text = data.get("content", [{}])[0].get("text", "")
+
+        elif provider == "ollama":
+            url = ollama_url or "http://localhost:11434"
+            model_name = model or "llama3"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{url.rstrip('/')}/api/chat",
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": rewrite_prompt}],
+                        "stream": False
+                      },
+                      timeout=timeout_val
+                  )
+                response.raise_for_status()
+                data = response.json()
+                response_text = data.get("message", {}).get("content", "")
+
+        elif provider == "custom":
+            if not ollama_url:
+                return current_query
+            model_name = model
+            if not model_name:
+                return current_query
+            headers = {"Content-Type": "application/json"}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{ollama_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": rewrite_prompt}],
+                        "stream": False
+                    },
+                    timeout=timeout_val
+                )
+                response.raise_for_status()
+                data = response.json()
+                response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        cleaned_text = response_text.strip().strip('"').strip("'")
+        if cleaned_text:
+            return cleaned_text
+    except Exception as e:
+        print(f"Warning: Conversational query rewrite failed: {e}")
+        
+    return current_query
+
+def rerank_chunks_lexical(query: str, chunks: List[Dict[str, Any]], top_n: int) -> List[Dict[str, Any]]:
+    """Reranks chunks by calculating the term distance density of query terms inside the text.
+    Promotes chunks where search terms appear closer together.
+    """
+    import re
+    # Clean and split query into terms
+    terms = [t.lower() for t in re.findall(r'\w+', query) if len(t) > 2]
+    if not terms or not chunks:
+        return chunks[:top_n]
+        
+    scored_chunks = []
+    for chunk in chunks:
+        text = chunk["text"].lower()
+        words = re.findall(r'\w+', text)
+        
+        # Find indices of all query terms in the text words list
+        term_indices = []
+        for i, word in enumerate(words):
+            if word in terms:
+                term_indices.append(i)
+                
+        if not term_indices:
+            # No matching words, base score on original rank/similarity
+            scored_chunks.append((chunk, chunk.get("similarity", 0.0) * 0.1))
+            continue
+            
+        # Calculate term density (inverse of average distance between query terms)
+        gaps = []
+        for a, b in zip(term_indices[:-1], term_indices[1:]):
+            gaps.append(b - a)
+            
+        avg_gap = sum(gaps) / len(gaps) if gaps else 100.0
+        density_score = 1.0 / (avg_gap + 1.0)
+        
+        # Cover ratio: what percentage of query terms are matched in this chunk?
+        matched_terms = sum(1 for t in terms if t in text)
+        cover_ratio = matched_terms / len(terms)
+        
+        # Combine density, coverage, and original similarity score
+        final_score = (cover_ratio * 0.6) + (density_score * 0.2) + (chunk.get("similarity", 0.0) * 0.2)
+        scored_chunks.append((chunk, final_score))
+        
+    # Sort by the combined lexical/density score
+    scored_chunks.sort(key=lambda x: x[1], reverse=True)
+    return [item[0] for item in scored_chunks[:top_n]]

@@ -438,6 +438,19 @@
         </div>
     </div>
 
+    <!-- Custom Diff Modal Overlay -->
+    <div class="modal-overlay" id="diff-modal" style="display: none;">
+        <div class="modal-card" style="max-width: 600px;">
+            <h3>Review File Changes</h3>
+            <p style="margin-bottom: 8px;">Inspect the additions and deletions before saving to the workspace.</p>
+            <div id="diff-container-pane" style="margin-bottom: 12px;"></div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="diff-cancel-btn">Cancel</button>
+                <button class="modal-btn confirm" id="diff-confirm-btn">Confirm Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Custom Toasts Container -->
     <div class="toast-container" id="toast-container"></div>
     
