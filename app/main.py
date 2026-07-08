@@ -990,24 +990,6 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 sources.extend(web_sources)
             yield f"event: sources\ndata: {json.dumps(sources)}\n\n"
             
-            if request.agentMode:
-                # Stream Agentic Teamwork Steps
-                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': 'Searching local database and web index...'})}\n\n"
-                await asyncio.sleep(1.0)
-                
-                # Perform search details to make it look active
-                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': f'Analyzed context. Found {len(context_chunks)} document chunks. Initiating Developer drafting...'})}\n\n"
-                await asyncio.sleep(1.0)
-                
-                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Developer', 'message': 'Structuring draft response, writing code blocks, and formatting math equations...'})}\n\n"
-                await asyncio.sleep(1.0)
-                
-                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Evaluating response coherence, checking neobrutalist borders alignment, and verifying citations...'})}\n\n"
-                await asyncio.sleep(0.8)
-                
-                yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Refinement complete. Streaming final output...'})}\n\n"
-                await asyncio.sleep(0.5)
-
             assistant_reply = ""
             try:
                 # 1. Parse query for referenced files (/file path or /files path)
@@ -1037,6 +1019,11 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 if web_search_text:
                     sys_prompt += f"\n\nRetrieved Web Search Context:\n{web_search_text}"
                 
+                workspace_files = []
+                total_size = 0
+                files_str = ""
+                auto_attached_contents = ""
+                
                 if workspace_manager.workspace_root:
                     try:
                         workspace_files = workspace_manager.list_files()
@@ -1046,7 +1033,6 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                         total_size = 0
                     
                     # If total size of codebase is small (<120 KB), read and attach all files automatically!
-                    auto_attached_contents = ""
                     if 0 < total_size < 120 * 1024:
                         for f in workspace_files:
                             try:
@@ -1093,20 +1079,152 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                         "Write out the full file content inside the tags. You can output multiple write blocks if needed."
                     )
 
-                async for text_part in generate_response_stream(
-                    messages=formatted_msgs,
-                    context_chunks=context_chunks,
-                    provider=request.provider,
-                    api_key=request.apiKey,
-                    ollama_url=request.ollamaUrl,
-                    model=request.genModel,
-                    system_prompt=sys_prompt,
-                    profile_memories=matched_memories,
-                    skills=matched_skills,
-                    past_messages=matched_messages
-                ):
-                    assistant_reply += text_part
-                    yield f"event: text\ndata: {json.dumps(text_part)}\n\n"
+                if request.agentMode:
+                    # ----------------- REAL MULTI-AGENT LOOP -----------------
+                    # Step 1: Researcher
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': 'Searching database, analyzing request, and drafting technical plan...'})}\n\n"
+                    yield "event: text\ndata: " + json.dumps("### 🔍 [Researcher's Analysis]\n") + "\n\n"
+                    
+                    researcher_prompt = (
+                        sys_prompt + 
+                        "\n\nYou are Researcher. Identify what files need to be changed or created to solve the user's request. "
+                        "Analyze the retrieved RAG contexts and draft a step-by-step implementation plan. "
+                        "Do not write the actual code content, just detail the plan. Keep it concise."
+                    )
+                    
+                    researcher_reply = ""
+                    async for text_part in generate_response_stream(
+                        messages=formatted_msgs,
+                        context_chunks=context_chunks,
+                        provider=request.provider,
+                        api_key=request.apiKey,
+                        ollama_url=request.ollamaUrl,
+                        model=request.genModel,
+                        system_prompt=researcher_prompt,
+                        profile_memories=matched_memories,
+                        skills=matched_skills,
+                        past_messages=matched_messages
+                    ):
+                        researcher_reply += text_part
+                        yield f"event: text\ndata: {json.dumps(text_part)}\n\n"
+                        
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': 'Plan generated. Transferring to Developer...'})}\n\n"
+                    await asyncio.sleep(0.3)
+                    
+                    # Step 2: Developer Draft
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Developer', 'message': 'Drafting code files and structuring implementation...'})}\n\n"
+                    yield "event: text\ndata: " + json.dumps("\n\n### 💻 [Developer's Draft]\n") + "\n\n"
+                    
+                    dev_draft_prompt = (
+                        sys_prompt +
+                        "\n\nYou are Developer. Based on Researcher's plan below, write the implementation details and draft the code. "
+                        f"\nResearcher's Plan:\n{researcher_reply}\n\n"
+                        "Output the code blocks clearly. Do not use [WRITE_FILE] tags yet; this is a draft."
+                    )
+                    
+                    developer_draft = ""
+                    dev_msgs = formatted_msgs + [{"role": "assistant", "content": researcher_reply}]
+                    async for text_part in generate_response_stream(
+                        messages=dev_msgs,
+                        context_chunks=context_chunks,
+                        provider=request.provider,
+                        api_key=request.apiKey,
+                        ollama_url=request.ollamaUrl,
+                        model=request.genModel,
+                        system_prompt=dev_draft_prompt
+                    ):
+                        developer_draft += text_part
+                        yield f"event: text\ndata: {json.dumps(text_part)}\n\n"
+                        
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Developer', 'message': 'Draft complete. Initiating Critic audit...'})}\n\n"
+                    await asyncio.sleep(0.3)
+                    
+                    # Step 3: Critic Review
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Evaluating code quality, styling border alignment, and checking syntax...'})}\n\n"
+                    yield "event: text\ndata: " + json.dumps("\n\n### ⚖️ [Critic's Audit]\n") + "\n\n"
+                    
+                    critic_prompt = (
+                        sys_prompt +
+                        "\n\nYou are Critic. Review Developer's draft code below. Highlight any syntax errors, performance issues, "
+                        "styling improvements, or bugs. Be critical and list them. "
+                        f"\nDeveloper's Draft:\n{developer_draft}\n"
+                    )
+                    
+                    critic_review = ""
+                    critic_msgs = dev_msgs + [{"role": "assistant", "content": developer_draft}]
+                    async for text_part in generate_response_stream(
+                        messages=critic_msgs,
+                        context_chunks=context_chunks,
+                        provider=request.provider,
+                        api_key=request.apiKey,
+                        ollama_url=request.ollamaUrl,
+                        model=request.genModel,
+                        system_prompt=critic_prompt
+                    ):
+                        critic_review += text_part
+                        yield f"event: text\ndata: {json.dumps(text_part)}\n\n"
+                        
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Audit complete. Refinement phase active...'})}\n\n"
+                    await asyncio.sleep(0.3)
+                    
+                    # Step 4: Final Refinement (Developer)
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Developer', 'message': 'Applying Critic fixes and compiling final code blocks...'})}\n\n"
+                    yield "event: text\ndata: " + json.dumps("\n\n### 🚀 [Developer's Final Refined Output]\n") + "\n\n"
+                    
+                    refine_prompt = (
+                        sys_prompt +
+                        "\n\nYou are Developer. Review Critic's suggestions and Developer's draft, and write the final, perfect code. "
+                        f"\nDeveloper's Draft:\n{developer_draft}\n"
+                        f"\nCritic's Suggestions:\n{critic_review}\n\n"
+                        "Output the final code. If the user asks you to write code, create, or update files, "
+                        "you must output the file content using this exact tag format:\n"
+                        "[WRITE_FILE: relative/path/to/file.ext]\n"
+                        "complete file content goes here\n"
+                        "[END_WRITE_FILE]\n"
+                    )
+                    
+                    refine_msgs = critic_msgs + [{"role": "user", "content": f"Address Critic's concerns and output the final refined code."}]
+                    refined_reply = ""
+                    async for text_part in generate_response_stream(
+                        messages=refine_msgs,
+                        context_chunks=context_chunks,
+                        provider=request.provider,
+                        api_key=request.apiKey,
+                        ollama_url=request.ollamaUrl,
+                        model=request.genModel,
+                        system_prompt=refine_prompt,
+                        profile_memories=matched_memories,
+                        skills=matched_skills
+                    ):
+                        refined_reply += text_part
+                        yield f"event: text\ndata: {json.dumps(text_part)}\n\n"
+                    
+                    # Log the entire multi-agent cycle summary
+                    assistant_reply = (
+                        f"### 🔍 [Researcher's Analysis]\n{researcher_reply}\n\n"
+                        f"### 💻 [Developer's Draft]\n{developer_draft}\n\n"
+                        f"### ⚖️ [Critic's Audit]\n{critic_review}\n\n"
+                        f"### 🚀 [Developer's Final Refined Output]\n{refined_reply}"
+                    )
+                    
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Autonomous Multi-Agent Loop finished successfully.'})}\n\n"
+                
+                else:
+                    # Standard Single-Turn Generation
+                    async for text_part in generate_response_stream(
+                        messages=formatted_msgs,
+                        context_chunks=context_chunks,
+                        provider=request.provider,
+                        api_key=request.apiKey,
+                        ollama_url=request.ollamaUrl,
+                        model=request.genModel,
+                        system_prompt=sys_prompt,
+                        profile_memories=matched_memories,
+                        skills=matched_skills,
+                        past_messages=matched_messages
+                    ):
+                        assistant_reply += text_part
+                        yield f"event: text\ndata: {json.dumps(text_part)}\n\n"
                 
                 # Intercept and process any WRITE_FILE commands generated by the LLM
                 import re
