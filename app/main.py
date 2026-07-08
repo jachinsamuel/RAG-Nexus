@@ -207,6 +207,111 @@ async def background_extraction_job(
     except Exception as e:
         print(f"Background reflection job error: {e}")
 
+# --- Memory Consolidation Background Job ---
+async def consolidate_profile_memories(
+    provider: str,
+    api_key: Optional[str],
+    ollama_url: Optional[str],
+    embed_model: Optional[str],
+    gen_model: Optional[str]
+):
+    memories = db.get_all_profile_memories()
+    if len(memories) < 2:
+        return {"status": "success", "message": "Not enough facts to consolidate."}
+        
+    import math
+    merged_ids = set()
+    consolidated_count = 0
+    
+    for idx1, m1 in enumerate(memories):
+        if m1["id"] in merged_ids:
+            continue
+            
+        similar_group = [m1]
+        emb1 = m1["embedding"]
+        len1 = len(emb1)
+        
+        for idx2, m2 in enumerate(memories[idx1 + 1:]):
+            if m2["id"] in merged_ids:
+                continue
+            emb2 = m2["embedding"]
+            if len(emb2) != len1:
+                continue
+                
+            dot = sum(a * b for a, b in zip(emb1, emb2))
+            norm_a = math.sqrt(sum(a * a for a in emb1))
+            norm_b = math.sqrt(sum(b * b for b in emb2))
+            if norm_a == 0 or norm_b == 0:
+                continue
+            sim = dot / (norm_a * norm_b)
+            
+            if sim >= 0.82:
+                similar_group.append(m2)
+                
+        if len(similar_group) > 1:
+            facts_list = [m["fact"] for m in similar_group]
+            prompt = (
+                f"Combine the following duplicate or overlapping facts about the user into a single concise, comprehensive fact:\n"
+                f"{chr(10).join('- ' + f for f in facts_list)}\n\n"
+                f"Output ONLY the combined fact text, nothing else."
+            )
+            
+            try:
+                from app.rag_engine import call_llm_single
+                merged_fact = await call_llm_single(
+                    prompt=prompt,
+                    provider=provider,
+                    api_key=api_key,
+                    ollama_url=ollama_url,
+                    model=gen_model
+                )
+                merged_fact = merged_fact.strip()
+                
+                if merged_fact:
+                    # Remove old facts
+                    for m in similar_group:
+                        db.delete_profile_memory(m["id"])
+                        merged_ids.add(m["id"])
+                        
+                    # Insert new consolidated fact
+                    new_emb = await get_embedding(
+                        text=merged_fact,
+                        provider=provider,
+                        api_key=api_key,
+                        ollama_url=ollama_url,
+                        model=embed_model
+                    )
+                    db.add_profile_memory(
+                        memory_id=str(uuid.uuid4()),
+                        fact=merged_fact,
+                        created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        embedding=new_emb
+                    )
+                    consolidated_count += 1
+            except Exception as e:
+                print(f"Failed to consolidate memory group: {e}")
+                
+    print(f"Memory consolidation completed. Consolidated {consolidated_count} groups.")
+
+class ConsolidateRequest(BaseModel):
+    provider: str
+    apiKey: Optional[str] = None
+    ollamaUrl: Optional[str] = None
+    embedModel: Optional[str] = None
+    genModel: Optional[str] = None
+
+@app.post("/api/memory/consolidate")
+async def consolidate_memories_endpoint(request: ConsolidateRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(
+        consolidate_profile_memories,
+        provider=request.provider,
+        api_key=request.apiKey,
+        ollama_url=request.ollamaUrl,
+        embed_model=request.embedModel,
+        gen_model=request.genModel
+    )
+    return {"status": "success", "message": "Memory consolidation job started in the background."}
+
 # --- REST Endpoints: Ollama Auto-Discovery ---
 @app.get("/api/ollama/discover")
 async def discover_ollama_models(url: str = "http://localhost:11434"):
@@ -598,6 +703,75 @@ async def save_workspace_file(req: FileWriteRequest):
         return {"status": "success", "message": f"File '{req.path}' saved."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class SandboxRequest(BaseModel):
+    language: str
+    code: str
+
+@app.post("/api/sandbox/run")
+async def run_sandbox(request: SandboxRequest):
+    import subprocess
+    import tempfile
+    import sys
+    import time
+    import os
+    
+    lang = request.language.lower()
+    if lang not in ["python", "py", "javascript", "js"]:
+        return {
+            "status": "error",
+            "detail": f"Language '{lang}' is not supported in the execution sandbox."
+        }
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".py" if lang in ["python", "py"] else ".js") as tmp:
+        # Normalize code to prevent carriage return issues in shell interpreters
+        clean_code = request.code.replace('\r\n', '\n')
+        tmp.write(clean_code.encode('utf-8'))
+        tmp_name = tmp.name
+        
+    try:
+        start_time = time.time()
+        if lang in ["python", "py"]:
+            python_exe = sys.executable or "python"
+            proc = subprocess.run(
+                [python_exe, tmp_name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=5.0
+            )
+        else: # javascript
+            proc = subprocess.run(
+                ["node", tmp_name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=5.0
+            )
+            
+        elapsed = time.time() - start_time
+        return {
+            "status": "success",
+            "exit_code": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+            "elapsed_ms": round(elapsed * 1000, 1)
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "status": "timeout",
+            "detail": "Execution timed out (limit: 5 seconds)."
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "detail": str(e)
+        }
+    finally:
+        try:
+            os.remove(tmp_name)
+        except Exception:
+            pass
 
 # --- REST Endpoints: Chat & Memory Retrieval ---
 @app.post("/api/chat/stream")

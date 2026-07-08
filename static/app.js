@@ -897,6 +897,66 @@ manualFactInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') addFactFromInput();
 });
 
+const consolidateMemoriesBtn = document.getElementById('consolidate-memories-btn');
+if (consolidateMemoriesBtn) {
+    consolidateMemoriesBtn.addEventListener('click', async () => {
+        consolidateMemoriesBtn.disabled = true;
+        consolidateMemoriesBtn.textContent = 'Consolidating...';
+        showToast("Starting memory consolidation job...", "info");
+        
+        try {
+            const embedConfig = getEmbeddingConfig();
+            const activeProv = state.settings.provider;
+            let genModel = 'gemini-1.5-flash';
+            let apiKey = '';
+            if (activeProv === 'gemini') {
+                genModel = state.settings.geminiModel || 'gemini-1.5-flash';
+                apiKey = state.settings.apiKey;
+            } else if (activeProv === 'openai') {
+                genModel = state.settings.openaiModel || 'gpt-4o';
+                apiKey = state.settings.openaiKey;
+            } else if (activeProv === 'claude') {
+                genModel = state.settings.claudeModel || 'claude-3-5-sonnet-latest';
+                apiKey = state.settings.claudeKey;
+            } else if (activeProv === 'ollama') {
+                genModel = state.settings.ollamaModel || 'llama3';
+            } else if (activeProv === 'custom') {
+                genModel = state.settings.customModel;
+                apiKey = state.settings.customKey;
+            }
+            
+            const res = await fetch('/api/memory/consolidate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: activeProv,
+                    apiKey: apiKey,
+                    ollamaUrl: embedConfig.ollamaUrl,
+                    embedModel: embedConfig.embedModel,
+                    genModel: genModel
+                })
+            });
+            
+            if (res.ok) {
+                showToast("Consolidation job running in background. Updating facts in 3 seconds...", "success");
+                setTimeout(async () => {
+                    await loadProfileMemories();
+                    consolidateMemoriesBtn.disabled = false;
+                    consolidateMemoriesBtn.textContent = 'Consolidate';
+                }, 3000);
+            } else {
+                showToast("Failed to start consolidation job", "error");
+                consolidateMemoriesBtn.disabled = false;
+                consolidateMemoriesBtn.textContent = 'Consolidate';
+            }
+        } catch (err) {
+            showToast("Consolidation error: " + err.message, "error");
+            consolidateMemoriesBtn.disabled = false;
+            consolidateMemoriesBtn.textContent = 'Consolidate';
+        }
+    });
+}
+
 async function addFactFromInput() {
     const fact = manualFactInput.value.trim();
     if (!fact) return;
@@ -1271,11 +1331,14 @@ function parseMarkdown(text) {
             <div class="code-header">
                 <span class="code-lang">${cleanLang}</span>
                 <div class="code-actions">
+                    ${(cleanLang.toLowerCase() === 'python' || cleanLang.toLowerCase() === 'py' || cleanLang.toLowerCase() === 'javascript' || cleanLang.toLowerCase() === 'js') ? 
+                      `<button class="code-action-btn run-btn" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25);" onclick="runCodeSandbox(this, '${cleanLang}')">Run</button>` : ''}
                     <button class="code-action-btn copy-btn" onclick="copyToClipboard(this)">Copy</button>
                     <button class="code-action-btn download-btn" onclick="downloadCode(this, '${cleanLang}')">Download</button>
                 </div>
             </div>
             <pre class="language-${cleanLang}"><code class="language-${cleanLang}">${code.trim()}</code></pre>
+            <div class="sandbox-output-pane" style="display: none; background: rgba(0, 0, 0, 0.45); border-top: 1px solid var(--border-color); padding: 12px; font-family: 'Space Mono', monospace; font-size: 11px; max-height: 200px; overflow-y: auto; text-align: left; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;"></div>
         </div>`);
         return `\n\n__CODE_BLOCK_${blockIndex}__\n\n`;
     });
@@ -1437,6 +1500,18 @@ function appendMessage(role, content, sources = null) {
             sourcesContainer.appendChild(badge);
         });
         bubble.appendChild(sourcesContainer);
+    }
+    
+    if (role === 'assistant') {
+        const speakBtn = document.createElement('button');
+        speakBtn.className = 'message-speak-btn';
+        speakBtn.title = "Read message aloud";
+        speakBtn.style.cssText = "background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; opacity: 0.8; padding: 4px 10px; margin-top: 8px; font-size: 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 9999px; transition: all 0.2s; font-family: inherit; font-weight: 500;";
+        speakBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg> Speak`;
+        speakBtn.addEventListener('click', () => {
+            toggleSpeech(content, speakBtn);
+        });
+        bubble.appendChild(speakBtn);
     }
     
     chatHistory.appendChild(bubble);
@@ -2893,5 +2968,83 @@ if (clearAgentLogsBtn) {
         showToast("Agent logs cleared.", "success");
     });
 }
+
+window.runCodeSandbox = async function(button, lang) {
+    const codeContainer = button.closest('.code-container');
+    const codeElement = codeContainer.querySelector('pre code');
+    const rawCode = codeElement.innerText;
+    const outputPane = codeContainer.querySelector('.sandbox-output-pane');
+    
+    if (!outputPane) return;
+    
+    button.disabled = true;
+    button.textContent = 'Running...';
+    outputPane.style.display = 'block';
+    outputPane.innerHTML = `<span style="color: var(--text-secondary);">Executing script in sandbox...</span>`;
+    
+    try {
+        const resp = await fetch('/api/sandbox/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                language: lang,
+                code: rawCode
+            })
+        });
+        const data = await resp.json();
+        
+        if (data.status === 'success') {
+            let outHtml = "";
+            if (data.stdout) {
+                outHtml += `<div style="color: #10b981; white-space: pre-wrap;">${escapeHtml(data.stdout)}</div>`;
+            }
+            if (data.stderr) {
+                outHtml += `<div style="color: #f43f5e; white-space: pre-wrap;">${escapeHtml(data.stderr)}</div>`;
+            }
+            if (!data.stdout && !data.stderr) {
+                outHtml += `<div style="color: var(--text-secondary);">Script executed with no console output.</div>`;
+            }
+            outHtml += `<div style="color: var(--text-secondary); margin-top: 6px; font-size: 10px; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 4px;">Exit code: ${data.exit_code} | Time: ${data.elapsed_ms}ms</div>`;
+            outputPane.innerHTML = outHtml;
+        } else {
+            outputPane.innerHTML = `<div style="color: #f43f5e;">Error: ${escapeHtml(data.detail || "Execution failed")}</div>`;
+        }
+    } catch (err) {
+        outputPane.innerHTML = `<div style="color: #f43f5e;">Network Error: ${escapeHtml(err.message)}</div>`;
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Run';
+    }
+};
+
+let currentUtterance = null;
+window.toggleSpeech = function(text, button) {
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        if (currentUtterance && currentUtterance.text === text) {
+            button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg> Speak`;
+            currentUtterance = null;
+            return;
+        }
+    }
+    
+    const cleanText = text.replace(/```[\s\S]*?```/g, '[code block]')
+                          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                          .replace(/[*_`#]/g, '');
+                          
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.onend = () => {
+        button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg> Speak`;
+        currentUtterance = null;
+    };
+    utterance.onerror = () => {
+        button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg> Speak`;
+        currentUtterance = null;
+    };
+    
+    button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect></svg> Stop`;
+    currentUtterance = utterance;
+    window.speechSynthesis.speak(utterance);
+};
 
 
