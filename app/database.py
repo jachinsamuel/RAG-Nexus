@@ -82,6 +82,19 @@ class Database:
                     embedding TEXT NOT NULL
                 )
             """)
+            
+            # Table for semantic query cache
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS semantic_cache (
+                    id TEXT PRIMARY KEY,
+                    query_text TEXT NOT NULL,
+                    embedding TEXT NOT NULL,
+                    response_text TEXT NOT NULL,
+                    chat_model TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            
             # Seed default skills if empty
             cursor.execute("SELECT COUNT(*) FROM skills")
             if cursor.fetchone()[0] == 0:
@@ -343,5 +356,58 @@ class Database:
             cursor.execute(
                 "UPDATE skills SET name = ?, description = ?, content = ?, embedding = ? WHERE id = ?",
                 (name, description, content, json.dumps(embedding), skill_id)
+            )
+            conn.commit()
+
+    def get_from_cache(self, query_embedding: List[float], chat_model: str, threshold: float = 0.95) -> Optional[str]:
+        if not query_embedding:
+            return None
+        from typing import Optional
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT query_text, embedding, response_text FROM semantic_cache WHERE chat_model = ?", (chat_model,))
+            rows = cursor.fetchall()
+            
+            import math
+            best_sim = -1.0
+            best_response = None
+            
+            query_len = len(query_embedding)
+            for row in rows:
+                try:
+                    emb = json.loads(row[1])
+                except Exception:
+                    continue
+                if len(emb) != query_len:
+                    continue
+                
+                # Compute Cosine Similarity
+                dot = sum(a * b for a, b in zip(query_embedding, emb))
+                norm_a = math.sqrt(sum(a * a for a in query_embedding))
+                norm_b = math.sqrt(sum(b * b for b in emb))
+                if norm_a == 0 or norm_b == 0:
+                    continue
+                sim = dot / (norm_a * norm_b)
+                
+                if sim >= threshold and sim > best_sim:
+                    best_sim = sim
+                    best_response = row[2]
+            
+            if best_response:
+                print(f"Info: Semantic Cache hit with similarity {best_sim:.4f}")
+            return best_response
+
+    def add_to_cache(self, query_text: str, embedding: List[float], response_text: str, chat_model: str):
+        if not query_text or not embedding or not response_text:
+            return
+        import uuid
+        from datetime import datetime
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cache_id = str(uuid.uuid4())
+            created_at = datetime.utcnow().isoformat()
+            cursor.execute(
+                "INSERT INTO semantic_cache (id, query_text, embedding, response_text, chat_model, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (cache_id, query_text, json.dumps(embedding), response_text, chat_model, created_at)
             )
             conn.commit()

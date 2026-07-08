@@ -1654,6 +1654,12 @@ chatForm.addEventListener('submit', async (e) => {
                         showToast(warn.message, 'error');
                     } else if (currentEvent === 'agent_step') {
                         const step = JSON.parse(dataStr);
+                        
+                        // Append to the dedicated Subagent Execution Logger panel
+                        if (window.appendAgentLog) {
+                            window.appendAgentLog(step.agent, step.message);
+                        }
+                        
                         if (firstTextChunk) {
                             stream.assistantContentDiv.innerHTML = '';
                             firstTextChunk = false;
@@ -2833,6 +2839,58 @@ if (chatUploadBtn && inlineFileInput) {
                 inlineFileInput.value = '';
             }
         }
+    });
+}
+
+// --- Subagent Operations Logger ---
+state.agentLogs = [];
+
+window.appendAgentLog = function(agentName, message) {
+    state.agentLogs = state.agentLogs || [];
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = { timestamp, agent: agentName, message };
+    state.agentLogs.push(logEntry);
+    
+    if (state.agentLogs.length > 200) {
+        state.agentLogs.shift();
+    }
+    
+    renderAgentLogs();
+};
+
+function renderAgentLogs() {
+    const container = document.getElementById('agent-logs-container');
+    if (!container) return;
+    
+    if (!state.agentLogs || state.agentLogs.length === 0) {
+        container.innerHTML = `<div style="color: var(--text-secondary); text-align: center; padding: 20px 0;">No active agent operations logged. Ready.</div>`;
+        return;
+    }
+    
+    container.innerHTML = state.agentLogs.map(log => {
+        let agentColor = 'var(--accent-color)';
+        const agentLower = log.agent.toLowerCase();
+        if (agentLower === 'researcher') agentColor = 'var(--cyan-color)';
+        else if (agentLower === 'developer') agentColor = '#10b981';
+        else if (agentLower === 'critic') agentColor = '#f43f5e';
+        else if (agentLower === 'planner') agentColor = '#eab308';
+        
+        return `<div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.05); text-align: left;">` +
+               `<span style="color: var(--text-secondary); font-size: 10px;">[${log.timestamp}]</span> ` +
+               `<span style="color: ${agentColor}; font-weight: 700;">[${log.agent.toUpperCase()}]</span> ` +
+               `<span>${escapeHtml(log.message)}</span>` +
+               `</div>`;
+    }).join('');
+    
+    container.scrollTop = container.scrollHeight;
+}
+
+const clearAgentLogsBtn = document.getElementById('clear-agent-logs-btn');
+if (clearAgentLogsBtn) {
+    clearAgentLogsBtn.addEventListener('click', () => {
+        state.agentLogs = [];
+        renderAgentLogs();
+        showToast("Agent logs cleared.", "success");
     });
 }
 

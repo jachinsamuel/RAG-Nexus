@@ -700,6 +700,74 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 embedding=query_embedding
             )
 
+        # Check if query is in semantic cache
+        cached_response = None
+        if query_embedding is not None:
+            try:
+                cached_response = db.get_from_cache(
+                    query_embedding=query_embedding,
+                    chat_model=request.chatModel,
+                    threshold=0.96
+                )
+            except Exception as ce:
+                print(f"Warning: Failed to query semantic cache: {ce}")
+
+        if cached_response:
+            # Log the assistant's cached reply to the database
+            if request.conversationId:
+                try:
+                    reply_embedding = await get_embedding(
+                        text=cached_response,
+                        provider=request.provider,
+                        api_key=request.apiKey,
+                        ollama_url=request.ollamaUrl,
+                        model=request.embedModel
+                    )
+                except Exception:
+                    reply_embedding = None
+                try:
+                    db.add_message(
+                        msg_id=str(uuid.uuid4()),
+                        conv_id=request.conversationId,
+                        role="assistant",
+                        content=cached_response,
+                        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        embedding=reply_embedding
+                    )
+                    # Trigger background preference extraction & self-reflection
+                    background_tasks.add_task(
+                        background_extraction_job,
+                        dialogue_turn=[
+                            {"role": "user", "content": query},
+                            {"role": "assistant", "content": cached_response}
+                        ],
+                        provider=request.provider,
+                        api_key=request.apiKey,
+                        ollama_url=request.ollamaUrl,
+                        model=request.chatModel
+                    )
+                except Exception as db_err:
+                    print(f"Warning: Failed to save cached message to database: {db_err}")
+
+            # Stream cached response back via SSE
+            async def cache_stream_generator():
+                yield f"event: sources\ndata: {json.dumps([])}\n\n"
+                
+                if request.agentMode:
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': 'Checking semantic response cache...'})}\n\n"
+                    await asyncio.sleep(0.3)
+                    yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': 'Cache hit! Serving response immediately.'})}\n\n"
+                    await asyncio.sleep(0.2)
+
+                words = cached_response.split(" ")
+                for i in range(0, len(words), 5):
+                    chunk = " ".join(words[i:i+5]) + " "
+                    yield f"event: text\ndata: {json.dumps(chunk)}\n\n"
+                    await asyncio.sleep(0.01)
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(cache_stream_generator(), media_type="text/event-stream")
+
         # Retrieve web search results if enabled
         web_search_text = ""
         web_sources = []
@@ -915,6 +983,18 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                             embed_model=request.embedModel,
                             gen_model=request.genModel
                         )
+                        
+                        # Add response to semantic cache
+                        if query_embedding is not None and assistant_reply.strip():
+                            try:
+                                db.add_to_cache(
+                                    query_text=search_query,
+                                    embedding=query_embedding,
+                                    response_text=assistant_reply,
+                                    chat_model=request.chatModel
+                                )
+                            except Exception as ce:
+                                print(f"Warning: Failed to save to semantic cache: {ce}")
                     except Exception as db_ex:
                         print(f"Error: Failed to save assistant message to database: {db_ex}")
                     

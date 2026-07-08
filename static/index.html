@@ -147,6 +147,7 @@
                 <button class="drawer-tab-btn" data-settings-tab="appearance-tab">Appearance</button>
                 <button class="drawer-tab-btn" data-settings-tab="documents-tab">Knowledge</button>
                 <button class="drawer-tab-btn" data-settings-tab="skills-tab">Skills Library</button>
+                <button class="drawer-tab-btn" data-settings-tab="agent-log-tab">Agent Logs</button>
             </div>
             
             <div class="drawer-content">
@@ -404,6 +405,18 @@
                         <ul class="skills-list" id="skills-list">
                             <!-- Dynamic Skills Cards -->
                         </ul>
+                    </div>
+                </div>
+
+                <!-- Tab 5: Agent Teamwork Logs -->
+                <div class="settings-tab-pane" id="agent-log-tab">
+                    <div class="section-sub-header">
+                        <h4>Subagent Operations Log</h4>
+                        <button class="save-settings-btn" id="clear-agent-logs-btn" style="margin: 0; padding: 6px 12px; font-size: 11px;">Clear Logs</button>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Monitor multi-agent execution cycles, file creations, and background cognitive tasks.</p>
+                    <div class="agent-logs-container" id="agent-logs-container" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; max-height: calc(100vh - 280px); overflow-y: auto; font-family: 'Space Mono', monospace; font-size: 11.5px; line-height: 1.5; color: var(--text-primary); max-height: calc(100vh - 240px);">
+                        <div style="color: var(--text-secondary); text-align: center; padding: 20px 0;">No active agent operations logged. Ready.</div>
                     </div>
                 </div>
 
