@@ -250,11 +250,15 @@ body {
 .project-card:hover, .conv-card:hover {
     background: var(--bg-card-hover);
     transform: translateY(-1px);
+    position: relative;
+    z-index: 2;
 }
 .project-card.active, .conv-card.active {
     background: rgba(59, 130, 246, 0.15);
     border-color: var(--accent-color);
     color: var(--text-primary);
+    position: relative;
+    z-index: 2;
 }
 
 .project-card-info, .conv-card-info {
@@ -674,11 +678,15 @@ body {
     background: var(--bg-card);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 2;
 }
 .conv-card.active {
     border-color: var(--cyan-color);
     background: rgba(59, 130, 246, 0.15);
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    position: relative;
+    z-index: 2;
 }
 .conv-card.active .conv-title {
     color: var(--text-primary);
