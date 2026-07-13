@@ -1083,7 +1083,7 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                     # ----------------- REAL MULTI-AGENT LOOP -----------------
                     # Step 1: Researcher
                     yield f"event: agent_step\ndata: {json.dumps({'agent': 'Researcher', 'message': 'Searching database, analyzing request, and drafting technical plan...'})}\n\n"
-                    yield "event: text\ndata: " + json.dumps("### 🔍 [Researcher's Analysis]\n") + "\n\n"
+                    yield "event: text\ndata: " + json.dumps("### [Researcher's Analysis]\n") + "\n\n"
                     
                     researcher_prompt = (
                         sys_prompt + 
@@ -1113,7 +1113,7 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                     
                     # Step 2: Developer Draft
                     yield f"event: agent_step\ndata: {json.dumps({'agent': 'Developer', 'message': 'Drafting code files and structuring implementation...'})}\n\n"
-                    yield "event: text\ndata: " + json.dumps("\n\n### 💻 [Developer's Draft]\n") + "\n\n"
+                    yield "event: text\ndata: " + json.dumps("\n\n### [Developer's Draft]\n") + "\n\n"
                     
                     dev_draft_prompt = (
                         sys_prompt +
@@ -1141,7 +1141,7 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                     
                     # Step 3: Critic Review
                     yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Evaluating code quality, styling border alignment, and checking syntax...'})}\n\n"
-                    yield "event: text\ndata: " + json.dumps("\n\n### ⚖️ [Critic's Audit]\n") + "\n\n"
+                    yield "event: text\ndata: " + json.dumps("\n\n### [Critic's Audit]\n") + "\n\n"
                     
                     critic_prompt = (
                         sys_prompt +
@@ -1169,7 +1169,7 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                     
                     # Step 4: Final Refinement (Developer)
                     yield f"event: agent_step\ndata: {json.dumps({'agent': 'Developer', 'message': 'Applying Critic fixes and compiling final code blocks...'})}\n\n"
-                    yield "event: text\ndata: " + json.dumps("\n\n### 🚀 [Developer's Final Refined Output]\n") + "\n\n"
+                    yield "event: text\ndata: " + json.dumps("\n\n### [Developer's Final Refined Output]\n") + "\n\n"
                     
                     refine_prompt = (
                         sys_prompt +
@@ -1201,10 +1201,10 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                     
                     # Log the entire multi-agent cycle summary
                     assistant_reply = (
-                        f"### 🔍 [Researcher's Analysis]\n{researcher_reply}\n\n"
-                        f"### 💻 [Developer's Draft]\n{developer_draft}\n\n"
-                        f"### ⚖️ [Critic's Audit]\n{critic_review}\n\n"
-                        f"### 🚀 [Developer's Final Refined Output]\n{refined_reply}"
+                        f"### [Researcher's Analysis]\n{researcher_reply}\n\n"
+                        f"### [Developer's Draft]\n{developer_draft}\n\n"
+                        f"### [Critic's Audit]\n{critic_review}\n\n"
+                        f"### [Developer's Final Refined Output]\n{refined_reply}"
                     )
                     
                     yield f"event: agent_step\ndata: {json.dumps({'agent': 'Critic', 'message': 'Autonomous Multi-Agent Loop finished successfully.'})}\n\n"
