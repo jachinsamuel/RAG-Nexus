@@ -422,9 +422,6 @@ function initSettings() {
     const retrievalStrategySelect = document.getElementById('retrieval-strategy');
     if (retrievalStrategySelect) retrievalStrategySelect.value = state.settings.retrievalStrategy || 'hybrid';
     
-    const themeModeSelect = document.getElementById('theme-mode-select');
-    if (themeModeSelect) themeModeSelect.value = state.settings.theme || 'dark';
-    
     applyAppearance(state.settings.theme || 'dark');
     
     // Configure workspace on load if path exists
@@ -1869,22 +1866,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (exportBtn) {
         exportBtn.addEventListener('click', () => exportConversation());
     }
-    const applyAppearanceBtn = document.getElementById('apply-appearance-btn');
-    const themeModeSelect = document.getElementById('theme-mode-select');
-    
-    if (applyAppearanceBtn) {
-        applyAppearanceBtn.addEventListener('click', () => {
-            const theme = themeModeSelect ? themeModeSelect.value : state.settings.theme;
-            applyAppearance(theme);
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            const nextTheme = (state.settings.theme === 'dark') ? 'light' : 'dark';
+            applyAppearance(nextTheme);
             localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
-            showToast("Appearance applied & saved!", "success");
-            closeDrawer(settingsDrawer);
-        });
-    }
-    
-    if (themeModeSelect) {
-        themeModeSelect.addEventListener('change', () => {
-            applyAppearance(themeModeSelect.value);
+            showToast(`Theme switched to ${nextTheme === 'dark' ? 'Midnight Dark' : 'Clean Studio'}`, "success");
         });
     }
     
@@ -2042,10 +2030,18 @@ function applyAppearance(themeName) {
     
     document.body.classList.remove('theme-light', 'theme-dark', 'dark-theme');
     
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    const sunIcon = themeBtn ? themeBtn.querySelector('.theme-icon-sun') : null;
+    const moonIcon = themeBtn ? themeBtn.querySelector('.theme-icon-moon') : null;
+    
     if (state.settings.theme === 'dark') {
         document.body.classList.add('theme-dark', 'dark-theme');
+        if (sunIcon) sunIcon.style.display = 'none';
+        if (moonIcon) moonIcon.style.display = 'block';
     } else {
         document.body.classList.add('theme-light');
+        if (sunIcon) sunIcon.style.display = 'block';
+        if (moonIcon) moonIcon.style.display = 'none';
     }
 }
 

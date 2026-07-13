@@ -64,6 +64,10 @@
                     <span class="active-chat-title" id="active-chat-title">New Conversation</span>
                 </div>
                 <div style="display: flex; gap: 8px;">
+                    <button class="export-btn" id="theme-toggle-btn" title="Toggle Light/Dark Theme" style="display: flex; align-items: center; justify-content: center; padding: 10px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="theme-icon-sun" style="display: none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="theme-icon-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    </button>
                     <button class="export-btn" id="export-btn" title="Export current chat to Markdown" style="display: flex; align-items: center; justify-content: center; padding: 10px;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-share-2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
                     </button>
@@ -144,7 +148,6 @@
             <div class="drawer-tabs">
                 <div class="drawer-tab-indicator" id="drawer-tab-indicator"></div>
                 <button class="drawer-tab-btn active" data-settings-tab="configs-tab">API & RAG</button>
-                <button class="drawer-tab-btn" data-settings-tab="appearance-tab">Appearance</button>
                 <button class="drawer-tab-btn" data-settings-tab="documents-tab">Knowledge</button>
                 <button class="drawer-tab-btn" data-settings-tab="skills-tab">Skills Library</button>
                 <button class="drawer-tab-btn" data-settings-tab="agent-log-tab">Agent Logs</button>
@@ -330,19 +333,6 @@
                     </div>
 
                     <button class="save-settings-btn" id="save-settings-btn">Save Configurations</button>
-                </div>
-                
-                <!-- Tab 2: Appearance & UI Design Customization -->
-                <div class="settings-tab-pane" id="appearance-tab">
-                    <div class="settings-group">
-                        <label for="theme-mode-select">Appearance Theme</label>
-                        <select id="theme-mode-select" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px; font-family: inherit; font-weight: 600; border-radius: 8px;">
-                            <option value="dark">Dark Glass (Premium Midnight)</option>
-                            <option value="light">Light Glass (Clean Studio)</option>
-                        </select>
-                    </div>
-
-                    <button class="save-settings-btn" id="apply-appearance-btn" style="margin-top: 15px;">Apply Theme</button>
                 </div>
                 
                 <!-- Tab 2: Knowledge Catalog & Episodic Memory -->
