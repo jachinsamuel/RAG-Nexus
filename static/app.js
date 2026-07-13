@@ -1483,7 +1483,11 @@ function appendMessage(role, content, sources = null) {
     
     const msgContent = document.createElement('div');
     msgContent.className = 'message-content';
-    msgContent.innerHTML = parseMarkdown(content);
+    if (content && content.includes('nexus-loading-container')) {
+        msgContent.innerHTML = content;
+    } else {
+        msgContent.innerHTML = parseMarkdown(content);
+    }
     bubble.appendChild(msgContent);
     
     if (window.Prism && typeof Prism.highlightAllUnder === 'function') {
@@ -1628,7 +1632,7 @@ chatForm.addEventListener('submit', async (e) => {
     state.messages.push({ role: 'user', content: queryToSubmit });
     appendMessage('user', query);
     
-    const assistantBubble = appendMessage('assistant', 'Reflecting & gathering memory context...');
+    const assistantBubble = appendMessage('assistant', '<div class="nexus-loading-container"><div class="nexus-loading-spinner"><div class="nexus-loading-circle"></div><div class="nexus-loading-inner"></div><div class="nexus-loading-core"></div></div><span class="nexus-loading-text">Nexus is reflecting...</span></div>');
     const assistantContentDiv = assistantBubble.querySelector('.message-content');
     
     // Initialize active stream tracking state
@@ -1847,8 +1851,173 @@ chatForm.addEventListener('submit', async (e) => {
     }
 });
 
+function initSplashCanvas() {
+    const canvas = document.getElementById('splash-canvas');
+    if (!canvas) return null;
+    const ctx = canvas.getContext('2d');
+    
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+    
+    const handleResize = () => {
+        if (!canvas) return;
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', handleResize);
+    
+    const particles = [];
+    const maxParticles = 60;
+    
+    for (let i = 0; i < maxParticles; i++) {
+        particles.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            vx: (Math.random() - 0.5) * 0.4,
+            vy: (Math.random() - 0.5) * 0.4,
+            radius: Math.random() * 2 + 1
+        });
+    }
+    
+    let active = true;
+    
+    function animateParticles() {
+        if (!active) return;
+        ctx.clearRect(0, 0, width, height);
+        
+        ctx.strokeStyle = 'rgba(96, 165, 250, 0.08)';
+        ctx.lineWidth = 0.8;
+        for (let i = 0; i < maxParticles; i++) {
+            const p1 = particles[i];
+            for (let j = i + 1; j < maxParticles; j++) {
+                const p2 = particles[j];
+                const dx = p1.x - p2.x;
+                const dy = p1.y - p2.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < 130) {
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            }
+        }
+        
+        ctx.fillStyle = 'rgba(139, 92, 246, 0.25)';
+        for (let i = 0; i < maxParticles; i++) {
+            const p = particles[i];
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            p.x += p.vx;
+            p.y += p.vy;
+            
+            if (p.x < 0 || p.x > width) p.vx *= -1;
+            if (p.y < 0 || p.y > height) p.vy *= -1;
+        }
+        
+        requestAnimationFrame(animateParticles);
+    }
+    
+    animateParticles();
+    
+    return () => {
+        active = false;
+        window.removeEventListener('resize', handleResize);
+    };
+}
+
+function startSplashLoader() {
+    const splash = document.getElementById('nexus-splash-screen');
+    const container = document.querySelector('.nexus-splash-svg-container');
+    const laserBeam = document.getElementById('laser-beam');
+    const pattern = document.getElementById('code-pattern');
+    if (!splash || !container) return;
+    
+    const stopCanvas = initSplashCanvas();
+    document.body.style.overflow = "hidden";
+    
+    let startTime = Date.now();
+    const duration = 2500; // 2.5 seconds
+    let animationFrame;
+    
+    // Scrambled code characters array for dynamic mutation
+    const scramblePool = "0101010101abcdefghijklmnopqrstuvwxyz[]{}<>:;+=-_*&^%$#@!";
+    
+    function updateProgress() {
+        const elapsed = Date.now() - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        
+        const easeT = 1 - Math.pow(1 - t, 3);
+        const progress = Math.min(easeT * 100, 100);
+        
+        // Update CSS variable --laser-pos for clip paths (sweeping left to right)
+        container.style.setProperty('--laser-pos', `${progress}%`);
+        
+        // Animate code pattern scrolling inside text shape
+        if (pattern) {
+            const scrollOffset = (Date.now() / 15) % 120;
+            pattern.setAttribute('patternTransform', `translate(0, -${scrollOffset})`);
+            
+            // Randomly mutate characters inside pattern text elements
+            if (t < 0.95 && Math.random() < 0.3) {
+                const texts = pattern.querySelectorAll('text');
+                texts.forEach(textNode => {
+                    let chars = textNode.textContent.split('');
+                    for (let i = 0; i < 2; i++) {
+                        const idx = Math.floor(Math.random() * chars.length);
+                        if (chars[idx] !== ' ') {
+                            chars[idx] = scramblePool[Math.floor(Math.random() * scramblePool.length)];
+                        }
+                    }
+                    textNode.textContent = chars.join('');
+                });
+            }
+        }
+        
+        if (t < 1) {
+            animationFrame = requestAnimationFrame(updateProgress);
+        } else {
+            if (laserBeam) {
+                laserBeam.style.opacity = '0';
+                laserBeam.style.transition = 'opacity 0.2s';
+            }
+            setTimeout(() => {
+                splash.classList.add('zooming');
+                setTimeout(() => {
+                    splash.style.display = 'none';
+                    splash.remove();
+                    if (stopCanvas) stopCanvas();
+                    document.body.style.overflow = "auto";
+                }, 1200);
+            }, 300);
+        }
+    }
+    
+    animationFrame = requestAnimationFrame(updateProgress);
+}
+
 // App Startup Initializations
 window.addEventListener('DOMContentLoaded', async () => {
+    // Apply theme classes to body early to ensure splash compliance
+    const savedSettings = localStorage.getItem('symphony_rag_settings');
+    let initialTheme = 'dark';
+    if (savedSettings) {
+        try {
+            const parsed = JSON.parse(savedSettings);
+            if (parsed.theme) initialTheme = parsed.theme;
+        } catch (e) {}
+    }
+    document.body.classList.remove('theme-light', 'theme-dark', 'dark-theme');
+    if (initialTheme === 'dark') {
+        document.body.classList.add('theme-dark', 'dark-theme');
+    } else {
+        document.body.classList.add('theme-light');
+    }
+
+    startSplashLoader();
     initSettings();
     await loadDocuments();
     await loadConversations();

@@ -10,9 +10,63 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css">
-    <link rel="stylesheet" href="style.css?v=2.1">
+    <link rel="stylesheet" href="style.css?v=3.0">
 </head>
 <body>
+    <!-- Fullscreen Splash Loader -->
+    <div id="nexus-splash-screen" class="nexus-splash-screen">
+        <!-- Generative Constellation Field -->
+        <canvas id="splash-canvas" class="splash-canvas"></canvas>
+
+        <div class="nexus-splash-container">
+            <div class="nexus-splash-svg-container">
+                <svg width="100%" height="100%" viewBox="0 0 1000 200" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                        <!-- Pattern of small code letters scrolling inside the brand text shape -->
+                        <pattern id="code-pattern" width="150" height="60" patternUnits="userSpaceOnUse">
+                            <text x="5" y="16" font-family="'Courier New', Courier, monospace" font-size="11" font-weight="700" fill="var(--cyan-color)" opacity="0.6">0110 1010 1101</text>
+                            <text x="5" y="32" font-family="'Courier New', Courier, monospace" font-size="11" font-weight="700" fill="var(--cyan-color)" opacity="0.6">x=RAG(query);</text>
+                            <text x="5" y="48" font-family="'Courier New', Courier, monospace" font-size="11" font-weight="700" fill="var(--cyan-color)" opacity="0.6">embed.cosine();</text>
+                        </pattern>
+                    </defs>
+
+                    <!-- Layer 1: Scrambled Code Shape (revealed to the right of the laser) -->
+                    <text 
+                        id="code-text" 
+                        x="50%" 
+                        y="50%" 
+                        dy=".35em" 
+                        text-anchor="middle" 
+                        font-size="150" 
+                        font-weight="900" 
+                        font-family="'Outfit', sans-serif" 
+                        letter-spacing="0.12em" 
+                        fill="url(#code-pattern)" 
+                        class="text-code-layer"
+                    >NEXUS</text>
+
+                    <!-- Layer 2: Clean Brand Text (revealed to the left of the laser) -->
+                    <text 
+                        id="clean-text" 
+                        x="50%" 
+                        y="50%" 
+                        dy=".35em" 
+                        text-anchor="middle" 
+                        font-size="150" 
+                        font-weight="900" 
+                        font-family="'Outfit', sans-serif" 
+                        letter-spacing="0.12em" 
+                        fill="var(--text-primary)" 
+                        class="text-clean-layer"
+                    >NEXUS</text>
+                </svg>
+
+                <!-- Glowing Vertical Laser Beam Overlay -->
+                <div class="nexus-laser-beam" id="laser-beam"></div>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container">
         
         <!-- Sidebar: Projects & Conversations -->
@@ -482,6 +536,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/contrib/auto-render.min.js"></script>
 
     <!-- Active Script bindings for frontend control panel -->
-    <script src="app.js?v=2.0"></script>
+    <script src="app.js?v=3.0"></script>
 </body>
 </html>
