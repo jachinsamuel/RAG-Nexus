@@ -297,8 +297,8 @@ body {
     opacity: 1;
 }
 .project-card-delete:hover, .conv-card-delete:hover {
-    color: var(--red-alert);
-    background: rgba(239, 68, 68, 0.1);
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 /* Sidebar Footer (Settings button at the bottom) */
@@ -489,7 +489,7 @@ body {
 }
 
 .doc-delete-btn:hover, .memory-delete-btn:hover, .conv-delete-btn:hover, .skill-delete-btn:hover {
-    color: var(--red-alert);
+    color: var(--text-primary);
 }
 
 /* Manual add forms inside memory/skills */
@@ -1682,13 +1682,13 @@ body.theme-light .settings-group select option {
     transition: all 0.25s ease;
 }
 .toast.success {
-    border-left: 4px solid var(--green-status);
+    border-left: 4px solid var(--text-primary);
 }
 .toast.error {
-    border-left: 4px solid var(--red-alert);
+    border-left: 4px solid var(--text-secondary);
 }
 .toast.info {
-    border-left: 4px solid var(--accent-color);
+    border-left: 4px solid var(--border-color);
 }
 @keyframes toastSlideIn {
     to { transform: translateX(0); }
