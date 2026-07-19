@@ -117,6 +117,14 @@
                 <div class="header-status">
                     <span class="active-chat-title" id="active-chat-title">New Conversation</span>
                 </div>
+                <!-- Telemetry Card -->
+                <div class="telemetry-card" id="telemetry-card" style="display: none;">
+                    <span class="telemetry-dot" id="telemetry-dot"></span>
+                    <span class="telemetry-label" id="telemetry-label">Ready</span>
+                    <span class="telemetry-divider">|</span>
+                    <span class="telemetry-latency" id="telemetry-latency">—</span>
+                    <span class="telemetry-cache" id="telemetry-cache" style="display:none;">Cache Hit</span>
+                </div>
                 <div style="display: flex; gap: 8px;">
                     <button class="export-btn" id="theme-toggle-btn" title="Toggle Light/Dark Theme" style="display: flex; align-items: center; justify-content: center; padding: 10px;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="theme-icon-sun" style="display: none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
@@ -128,6 +136,29 @@
                 </div>
             </header>
             
+            <!-- Multi-Agent Flow Visualizer Strip -->
+            <div class="agent-flow-strip" id="agent-flow-strip" style="display: none;">
+                <div class="agent-flow-node" id="flow-node-researcher" data-node="researcher">
+                    <span class="flow-node-dot"></span>
+                    <span class="flow-node-label">Researcher</span>
+                </div>
+                <div class="agent-flow-arrow">→</div>
+                <div class="agent-flow-node" id="flow-node-developer" data-node="developer">
+                    <span class="flow-node-dot"></span>
+                    <span class="flow-node-label">Developer</span>
+                </div>
+                <div class="agent-flow-arrow">→</div>
+                <div class="agent-flow-node" id="flow-node-critic" data-node="critic">
+                    <span class="flow-node-dot"></span>
+                    <span class="flow-node-label">Critic</span>
+                </div>
+                <div class="agent-flow-arrow">→</div>
+                <div class="agent-flow-node" id="flow-node-finalizer" data-node="finalizer">
+                    <span class="flow-node-dot"></span>
+                    <span class="flow-node-label">Finalizer</span>
+                </div>
+            </div>
+
             <div class="chat-history" id="chat-history">
                 <!-- Chat messages loaded here -->
             </div>
@@ -183,11 +214,24 @@
         <!-- Drawer: Context / Sources Viewer (Slides in from right) -->
         <div class="drawer" id="context-drawer">
             <div class="drawer-header">
-                <h3>Retrieved Citations</h3>
+                <h3>Context Inspector</h3>
                 <button class="drawer-close" id="drawer-close-btn">&times;</button>
             </div>
-            <div class="drawer-content" id="drawer-content">
+            <!-- Context Drawer Tabs -->
+            <div class="drawer-tabs" style="margin: 0 16px 0 16px;">
+                <div class="drawer-tab-indicator" id="context-tab-indicator"></div>
+                <button class="drawer-tab-btn active" data-context-tab="citations-tab-pane" id="citations-tab-btn">Citations</button>
+                <button class="drawer-tab-btn" data-context-tab="rag-diag-tab-pane" id="rag-diag-tab-btn">RAG Diagnostics</button>
+            </div>
+            <!-- Citations Pane -->
+            <div class="drawer-content context-tab-pane active" id="citations-tab-pane">
                 <!-- Retrieved Chunk List -->
+            </div>
+            <!-- RAG Diagnostics Pane -->
+            <div class="drawer-content context-tab-pane" id="rag-diag-tab-pane" style="display:none;">
+                <div id="rag-diag-content" style="padding: 12px 0;">
+                    <p style="font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 24px;">No RAG diagnostics yet. Send a message to inspect retrieval metrics.</p>
+                </div>
             </div>
         </div>
 
@@ -379,6 +423,14 @@
                     <div class="settings-group" style="flex-direction: row; align-items: center; gap: 10px; margin: 10px 0;">
                         <input type="checkbox" id="web-search-toggle" style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--cyan-color);">
                         <label for="web-search-toggle" style="cursor: pointer; margin-bottom: 0;">Enable Web Search</label>
+                    </div>
+
+                    <div class="settings-group" style="flex-direction: row; align-items: center; gap: 10px; margin: 4px 0;">
+                        <input type="checkbox" id="hyde-toggle" style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--cyan-color);">
+                        <div>
+                            <label for="hyde-toggle" style="cursor: pointer; margin-bottom: 0;">Enable HyDE</label>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Hypothetical Document Embeddings — generates a synthetic answer passage then embeds it for deeper semantic retrieval</div>
+                        </div>
                     </div>
 
                     <div class="settings-group">

@@ -24,7 +24,9 @@ from app.rag_engine import (
     extract_memory_and_skills_from_dialogue,
     search_ddg,
     rewrite_query_for_retrieval,
-    rerank_chunks_lexical
+    rerank_chunks_lexical,
+    generate_hyde_text,
+    enrich_chunks_with_siblings
 )
 
 def get_error_detail(ex: Exception) -> str:
@@ -94,6 +96,11 @@ class ChatRequest(BaseModel):
     webSearch: Optional[bool] = False
     agentMode: Optional[bool] = False
     retrievalStrategy: Optional[str] = "hybrid"
+    hyde: Optional[bool] = False
+
+    @property
+    def chatModel(self) -> Optional[str]:
+        return self.genModel
 
 class ConversationCreate(BaseModel):
     title: str
@@ -777,6 +784,7 @@ async def run_sandbox(request: SandboxRequest):
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
     try:
+        query_start = datetime.now()
         if not request.messages:
             raise HTTPException(status_code=400, detail="No conversation messages found.")
         query = request.messages[-1].content
@@ -810,6 +818,27 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
             )
         except Exception as e:
             print(f"Warning: Failed to compute user query embedding: {e}")
+            
+        # Optional: HyDE (Hypothetical Document Embeddings) Query Expansion
+        if request.hyde and query_embedding is not None:
+            try:
+                hyde_text = await generate_hyde_text(
+                    query=search_query,
+                    provider=request.provider,
+                    api_key=request.apiKey,
+                    ollama_url=request.ollamaUrl,
+                    model=request.chatModel
+                )
+                print(f"Info: HyDE hypothetical document generated: '{hyde_text}'")
+                query_embedding = await get_embedding(
+                    text=hyde_text,
+                    provider=request.provider,
+                    api_key=request.apiKey,
+                    ollama_url=request.ollamaUrl,
+                    model=request.embedModel
+                )
+            except Exception as he:
+                print(f"Warning: HyDE query expansion failed: {he}")
         
         # 2. Retrieve matched document chunks (Hybrid search)
         all_chunks = db.get_all_chunks()
@@ -829,6 +858,9 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
         
         # Apply term density reranking to get the final topK most relevant chunks
         context_chunks = rerank_chunks_lexical(query=search_query, chunks=context_chunks, top_n=request.topK)
+        
+        # Enrich retrieved chunks with sliding context window sibling chunks
+        context_chunks = enrich_chunks_with_siblings(retrieved_chunks=context_chunks, all_chunks=all_chunks)
         
         # 3. Retrieve matched profile memories
         all_memories = db.get_all_profile_memories()
@@ -925,6 +957,8 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
 
             # Stream cached response back via SSE
             async def cache_stream_generator():
+                latency_ms = int((datetime.now() - query_start).total_seconds() * 1000)
+                yield f"event: telemetry\ndata: {json.dumps({'latency_ms': latency_ms, 'cache_hit': True})}\n\n"
                 yield f"event: sources\ndata: {json.dumps([])}\n\n"
                 
                 if request.agentMode:
@@ -967,6 +1001,8 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
 
         # 6. Stream generator utilizing SSE
         async def event_generator():
+            latency_ms = int((datetime.now() - query_start).total_seconds() * 1000)
+            yield f"event: telemetry\ndata: {json.dumps({'latency_ms': latency_ms, 'cache_hit': False})}\n\n"
             # Warn frontend if embedding dimension mismatches were detected
             if chunk_dim_mismatches > 0:
                 warning_msg = (

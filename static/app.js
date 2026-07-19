@@ -81,7 +81,7 @@ const saveSettingsBtn = document.getElementById('save-settings-btn');
 
 const contextDrawer = document.getElementById('context-drawer');
 const drawerCloseBtn = document.getElementById('drawer-close-btn');
-const drawerContent = document.getElementById('drawer-content');
+const drawerContent = document.getElementById('citations-tab-pane');
 
 // Settings Input Elements
 const providerGemini = document.querySelector('input[name="provider"][value="gemini"]');
@@ -417,6 +417,8 @@ function initSettings() {
     }
     if (systemPromptInput) systemPromptInput.value = state.settings.systemPrompt;
     if (webSearchToggle) webSearchToggle.checked = !!state.settings.webSearch;
+    const hydeToggle = document.getElementById('hyde-toggle');
+    if (hydeToggle) hydeToggle.checked = !!state.settings.hyde;
     if (workspacePathInput) workspacePathInput.value = state.settings.workspacePath || '';
     
     const retrievalStrategySelect = document.getElementById('retrieval-strategy');
@@ -477,6 +479,8 @@ function saveSettings() {
     if (thresholdSlider) state.settings.threshold = parseFloat(thresholdSlider.value);
     if (systemPromptInput) state.settings.systemPrompt = systemPromptInput.value.trim();
     if (webSearchToggle) state.settings.webSearch = webSearchToggle.checked;
+    const hydeToggleEl = document.getElementById('hyde-toggle');
+    if (hydeToggleEl) state.settings.hyde = hydeToggleEl.checked;
     
     const retrievalStrategySelect = document.getElementById('retrieval-strategy');
     if (retrievalStrategySelect) state.settings.retrievalStrategy = retrievalStrategySelect.value;
@@ -1023,7 +1027,7 @@ function renderProfileMemoriesList() {
 
         const editBtn = document.createElement('button');
         editBtn.className = 'memory-edit-btn';
-        editBtn.innerHTML = '✎';
+        editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>';
         editBtn.style.background = 'none';
         editBtn.style.border = 'none';
         editBtn.style.color = 'var(--text-secondary)';
@@ -1202,7 +1206,7 @@ function renderSkillsList() {
 
         const editBtn = document.createElement('button');
         editBtn.className = 'skill-edit-btn';
-        editBtn.innerHTML = '✎';
+        editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>';
         editBtn.style.background = 'none';
         editBtn.style.border = 'none';
         editBtn.style.color = 'var(--text-secondary)';
@@ -1691,6 +1695,7 @@ chatForm.addEventListener('submit', async (e) => {
                 threshold: state.settings.threshold,
                 systemPrompt: state.settings.systemPrompt,
                 webSearch: !!state.settings.webSearch,
+                hyde: !!state.settings.hyde,
                 retrievalStrategy: state.settings.retrievalStrategy || 'hybrid',
                 agentMode: (() => {
                     const btn = document.getElementById('agent-toggle-btn');
@@ -2078,7 +2083,6 @@ window.addEventListener('DOMContentLoaded', async () => {
             const nextTheme = (state.settings.theme === 'dark') ? 'light' : 'dark';
             applyAppearance(nextTheme);
             localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
-            showToast(`Theme switched to ${nextTheme === 'dark' ? 'Midnight Dark' : 'Clean Studio'}`, "success");
         });
     }
     
@@ -3259,3 +3263,43 @@ window.toggleSpeech = function(text, button) {
 };
 
 
+
+// TELEMETRY + AGENT FLOW + RAG DIAGNOSTICS utilities
+window.setTelemetryLoading = function() {
+  var c=document.getElementById('telemetry-card'),d=document.getElementById('telemetry-dot'),l=document.getElementById('telemetry-label'),t=document.getElementById('telemetry-latency'),ch=document.getElementById('telemetry-cache');
+  if(!c)return;c.style.display='flex';d.className='telemetry-dot loading';l.textContent='Processing';t.textContent='...';if(ch)ch.style.display='none';
+};
+window.updateAgentFlowNode = function(agentLabel) {
+  var strip=document.getElementById('agent-flow-strip');if(!strip)return;strip.style.display='flex';
+  var map={'researcher':'researcher','research':'researcher','developer':'developer','dev':'developer','code':'developer','critic':'critic','review':'critic','critique':'critic','finalizer':'finalizer','final':'finalizer','writer':'finalizer'};
+  var norm=(agentLabel||'').toLowerCase(),mapped=null;
+  Object.keys(map).forEach(function(k){if(!mapped&&norm.indexOf(k)!==-1)mapped=map[k];});
+  if(!mapped)return;
+  var order=['researcher','developer','critic','finalizer'],ai=order.indexOf(mapped);
+  order.forEach(function(nk,i){var n=document.getElementById('flow-node-'+nk);if(!n)return;n.classList.remove('active','done');if(i<ai)n.classList.add('done');else if(i===ai)n.classList.add('active');});
+};
+window.resetAgentFlowStrip = function() {
+  var s=document.getElementById('agent-flow-strip');if(!s)return;s.style.display='none';
+  ['researcher','developer','critic','finalizer'].forEach(function(k){var n=document.getElementById('flow-node-'+k);if(n)n.classList.remove('active','done');});
+};
+window.buildRagDiagnostics = function(telem, sources) {
+  var d=document.getElementById('rag-diag-content');if(!d)return;
+  var fmt=function(ms){return ms<1000?ms+'ms':(ms/1000).toFixed(2)+'s';};
+  var lc=telem.latency_ms<800?'good':telem.latency_ms<2000?'warn':'bad';
+  var ch='';
+  if(sources&&sources.length>0){
+    ch=sources.slice(0,8).map(function(s){var p=Math.round((s.similarity||0)*100),bp=Math.min(100,p),n=(s.doc_name||'Unknown').replace('Web: ','');return '<div class=\'rag-similarity-bar\'><span class=\'rag-chunk-name\'>'+n+'</span><div class=\'rag-bar-track\'><div class=\'rag-bar-fill\' style=\'width:'+bp+'%\'></div></div><span class=\'rag-chunk-pct\'>'+p+'%</span></div>';}).join('');
+  }else{ch='<div style=\'font-size:11px;color:var(--text-secondary);text-align:center;padding:12px 0;\'>No document chunks retrieved.</div>';}
+  d.innerHTML='<div class=\'rag-diag-section\'><h5>Request Metrics</h5><div class=\'rag-metric-row\'><span class=\'rag-metric-label\'>Response Latency</span><span class=\'rag-metric-value '+lc+'\'>'+fmt(telem.latency_ms)+'</span></div><div class=\'rag-metric-row\'><span class=\'rag-metric-label\'>Cache Status</span><span class=\'rag-metric-value '+(telem.cache_hit?'good':'')+'\'>'+( telem.cache_hit?'Hit':'Miss')+'</span></div><div class=\'rag-metric-row\'><span class=\'rag-metric-label\'>Chunks Retrieved</span><span class=\'rag-metric-value\'>'+(sources?sources.length:0)+'</span></div></div><div class=\'rag-diag-section\'><h5>Chunk Relevance Scores</h5>'+ch+'</div>';
+};
+(function(){
+  var cb=document.getElementById('citations-tab-btn'),db=document.getElementById('rag-diag-tab-btn'),cp=document.getElementById('citations-tab-pane'),dp=document.getElementById('rag-diag-tab-pane');
+  if(!cb||!db||!cp||!dp)return;
+  function sw(ab,ap,ib,ip){ab.classList.add('active');ib.classList.remove('active');ap.style.display='block';ap.classList.add('active');ip.style.display='none';ip.classList.remove('active');}
+  cb.addEventListener('click',function(){sw(cb,cp,db,dp);});
+  db.addEventListener('click',function(){sw(db,dp,cb,cp);});
+})();
+(function(){
+  var f=document.getElementById('chat-form');if(!f)return;
+  f.addEventListener('submit',function(){if(window.setTelemetryLoading)window.setTelemetryLoading();if(window.resetAgentFlowStrip)window.resetAgentFlowStrip();},true);
+})();

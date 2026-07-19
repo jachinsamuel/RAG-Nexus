@@ -12,68 +12,95 @@ from typing import List, Dict, Any, Generator, Tuple
 from pypdf import PdfReader
 
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
-    """Splits text into chunks by grouping sentences together to avoid mid-sentence breaks."""
+    """Splits text into chunks, keeping markdown code blocks intact and avoiding mid-sentence cuts in plain text."""
     if not text:
         return []
         
     import re
-    # Split text into sentences, preserving sentence boundaries
-    sentence_ends = re.compile(r'(?<=[.!?])\s+')
-    sentences = sentence_ends.split(text)
+    # Detect markdown code blocks
+    code_block_pattern = re.compile(r'(```[a-zA-Z0-9#\+\-\*_]*\r?\n[\s\S]*?\r?\n```)')
     
+    parts = code_block_pattern.split(text)
     chunks = []
-    current_chunk = []
-    current_length = 0
     
-    for sentence in sentences:
-        sentence = sentence.strip()
-        if not sentence:
+    for part in parts:
+        if not part.strip():
             continue
             
-        sentence_len = len(sentence)
-        
-        # If a single sentence is larger than chunk_size, split it by characters as fallback
-        if sentence_len > chunk_size:
-            # Output whatever we have in the current chunk first
+        # Keep code blocks as atomic chunks, or chunk by line if exceeding chunk_size
+        if part.startswith("```"):
+            if len(part) <= chunk_size:
+                chunks.append(part)
+            else:
+                lines = part.split("\n")
+                header = lines[0]
+                footer = "```"
+                current_code_chunk = [header]
+                current_len = len(header) + len(footer)
+                
+                for line in lines[1:-1]:
+                    line_len = len(line) + 1
+                    if current_len + line_len > chunk_size:
+                        current_code_chunk.append(footer)
+                        chunks.append("\n".join(current_code_chunk))
+                        current_code_chunk = [header, line]
+                        current_len = len(header) + len(footer) + line_len
+                    else:
+                        current_code_chunk.append(line)
+                        current_len += line_len
+                        
+                if len(current_code_chunk) > 1:
+                    current_code_chunk.append(footer)
+                    chunks.append("\n".join(current_code_chunk))
+        else:
+            # Split plain text sentence-by-sentence
+            sentence_ends = re.compile(r'(?<=[.!?])\s+')
+            sentences = sentence_ends.split(part)
+            current_chunk = []
+            current_length = 0
+            
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if not sentence:
+                    continue
+                sentence_len = len(sentence)
+                
+                if sentence_len > chunk_size:
+                    if current_chunk:
+                        chunks.append(" ".join(current_chunk))
+                        current_chunk = []
+                        current_length = 0
+                    
+                    start = 0
+                    while start < sentence_len:
+                        end = start + chunk_size
+                        chunks.append(sentence[start:end])
+                        start += (chunk_size - chunk_overlap)
+                    continue
+                    
+                if current_length + sentence_len + (1 if current_chunk else 0) > chunk_size:
+                    chunks.append(" ".join(current_chunk))
+                    
+                    overlap_chunk = []
+                    overlap_length = 0
+                    for prev_sentence in reversed(current_chunk):
+                        prev_len = len(prev_sentence)
+                        if overlap_length + prev_len + (1 if overlap_chunk else 0) <= chunk_overlap:
+                            overlap_chunk.insert(0, prev_sentence)
+                            overlap_length += prev_len + (1 if overlap_chunk else 0)
+                        else:
+                            break
+                    current_chunk = overlap_chunk
+                    current_length = overlap_length
+                    
+                current_chunk.append(sentence)
+                current_length += sentence_len + (1 if len(current_chunk) > 1 else 0)
+                
             if current_chunk:
                 chunks.append(" ".join(current_chunk))
-                current_chunk = []
-                current_length = 0
-            
-            # Split the giant sentence by character chunks
-            start = 0
-            while start < sentence_len:
-                end = start + chunk_size
-                chunks.append(sentence[start:end])
-                start += (chunk_size - chunk_overlap)
-            continue
-            
-        # Check if adding this sentence exceeds chunk_size
-        if current_length + sentence_len + (1 if current_chunk else 0) > chunk_size:
-            chunks.append(" ".join(current_chunk))
-            
-            # Start a new chunk, incorporating overlap
-            # Overlap: keep the last few sentences whose combined length is <= chunk_overlap
-            overlap_chunk = []
-            overlap_length = 0
-            for prev_sentence in reversed(current_chunk):
-                prev_len = len(prev_sentence)
-                if overlap_length + prev_len + (1 if overlap_chunk else 0) <= chunk_overlap:
-                    overlap_chunk.insert(0, prev_sentence)
-                    overlap_length += prev_len + (1 if overlap_chunk else 0)
-                else:
-                    break
-            
-            current_chunk = overlap_chunk
-            current_length = overlap_length
-            
-        current_chunk.append(sentence)
-        current_length += sentence_len + (1 if len(current_chunk) > 1 else 0)
-        
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
-        
+                
     return chunks
+
 
 async def get_embedding(
     text: str, 
@@ -1170,6 +1197,141 @@ async def search_ddg(query: str, max_results: int = 5) -> List[Dict[str, str]]:
         print(f"DuckDuckGo keyless search failed: {e}")
         return []
 
+async def get_completion(
+    prompt: str,
+    provider: str,
+    api_key: str = None,
+    ollama_url: str = None,
+    model: str = None,
+    timeout_val: float = 5.0
+) -> str:
+    """Helper to fetch a standard non-streaming text completion from any active provider."""
+    try:
+        if provider == "gemini":
+            if not api_key:
+                return ""
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+            }
+            async with httpx.AsyncClient() as client:
+                candidate_models = []
+                req_model = (model or "gemini-1.5-flash").replace("models/", "")
+                candidate_models.append(req_model)
+                candidate_models.append(f"models/{req_model}")
+                for fb in ["gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash-8b", "models/gemini-1.5-flash"]:
+                    if fb not in candidate_models:
+                        candidate_models.append(fb)
+                seen = set()
+                unique_candidates = [m for m in candidate_models if not (m in seen or seen.add(m))]
+                
+                for m_name in unique_candidates:
+                    endpoint_model = m_name if m_name.startswith("models/") else f"models/{m_name}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/{endpoint_model}:generateContent?key={api_key}"
+                    try:
+                        res = await client.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=timeout_val)
+                        if res.status_code == 200:
+                            data = res.json()
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                if parts:
+                                    txt = parts[0].get("text", "")
+                                    if txt.strip():
+                                        return txt.strip()
+                    except Exception:
+                        continue
+
+        elif provider == "openai":
+            if not api_key:
+                return ""
+            model_name = model or "gpt-4o-mini"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "stream": False
+                    },
+                    timeout=timeout_val
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+
+        elif provider == "claude":
+            claude_key = api_key
+            if api_key and "|||" in api_key:
+                claude_key, _, _ = api_key.split("|||")
+            if not claude_key:
+                return ""
+            model_name = model or "claude-3-5-sonnet-latest"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": claude_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json"
+                    },
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 120,
+                        "stream": False
+                    },
+                    timeout=timeout_val
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("content", [{}])[0].get("text", "").strip()
+
+        elif provider == "ollama":
+            url = ollama_url or "http://localhost:11434"
+            model_name = model or "llama3"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{url.rstrip('/')}/api/chat",
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "stream": False
+                    },
+                    timeout=timeout_val
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("message", {}).get("content", "").strip()
+
+        elif provider == "custom":
+            if not ollama_url:
+                return ""
+            model_name = model
+            if not model_name:
+                return ""
+            headers = {"Content-Type": "application/json"}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{ollama_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "stream": False
+                    },
+                    timeout=timeout_val
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+
+    except Exception as e:
+        print(f"Warning: Completion request failed: {e}")
+    return ""
+
 async def rewrite_query_for_retrieval(
     messages: List[Dict[str, str]],
     current_query: str,
@@ -1207,150 +1369,42 @@ async def rewrite_query_for_retrieval(
         "Standalone search query:"
     )
 
-    try:
-        response_text = ""
-        timeout_val = 4.0
-        
-        if provider == "gemini":
-            if not api_key:
-                return current_query
-            
-            payload = {
-                "contents": [{"parts": [{"text": rewrite_prompt}]}],
-            }
-            
-            async with httpx.AsyncClient() as client:
-                candidate_models = []
-                req_model = (model or "gemini-1.5-flash").replace("models/", "")
-                candidate_models.append(req_model)
-                candidate_models.append(f"models/{req_model}")
-                
-                for fb in ["gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash-8b", "models/gemini-1.5-flash"]:
-                    if fb not in candidate_models:
-                        candidate_models.append(fb)
-                        
-                seen = set()
-                unique_candidates = [m for m in candidate_models if not (m in seen or seen.add(m))]
-                
-                for m_name in unique_candidates:
-                    endpoint_model = m_name if m_name.startswith("models/") else f"models/{m_name}"
-                    url = f"https://generativelanguage.googleapis.com/v1beta/{endpoint_model}:generateContent?key={api_key}"
-                    try:
-                        res = await client.post(
-                            url,
-                            headers={"Content-Type": "application/json"},
-                            json=payload,
-                            timeout=timeout_val
-                        )
-                        if res.status_code == 200:
-                            data = res.json()
-                            candidates = data.get("candidates", [])
-                            if candidates:
-                                parts = candidates[0].get("content", {}).get("parts", [])
-                                if parts:
-                                    response_text = parts[0].get("text", "")
-                                    if response_text.strip():
-                                        break
-                    except Exception:
-                        continue
-            
-        elif provider == "openai":
-            if not api_key:
-                return current_query
-            model_name = model or "gpt-4o-mini"
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": model_name,
-                        "messages": [{"role": "user", "content": rewrite_prompt}],
-                        "stream": False
-                    },
-                    timeout=timeout_val
-                )
-                response.raise_for_status()
-                data = response.json()
-                response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    res = await get_completion(
+        prompt=rewrite_prompt,
+        provider=provider,
+        api_key=api_key,
+        ollama_url=ollama_url,
+        model=model,
+        timeout_val=4.0
+    )
+    cleaned_text = res.strip().strip('"').strip("'")
+    return cleaned_text if cleaned_text else current_query
 
-        elif provider == "claude":
-            claude_key = api_key
-            if api_key and "|||" in api_key:
-                claude_key, _, _ = api_key.split("|||")
-            if not claude_key:
-                return current_query
-            model_name = model or "claude-3-5-sonnet-latest"
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": claude_key,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json"
-                    },
-                    json={
-                        "model": model_name,
-                        "messages": [{"role": "user", "content": rewrite_prompt}],
-                        "max_tokens": 100,
-                        "stream": False
-                    },
-                    timeout=timeout_val
-                )
-                response.raise_for_status()
-                data = response.json()
-                response_text = data.get("content", [{}])[0].get("text", "")
+async def generate_hyde_text(
+    query: str,
+    provider: str,
+    api_key: str = None,
+    ollama_url: str = None,
+    model: str = None
+) -> str:
+    """Generates a hypothetical document passage (HyDE) to improve vector embedding similarity match."""
+    hyde_prompt = (
+        f"Please write a brief passage (2-3 sentences) that directly answers the following technical question. "
+        f"Do not include introductions, explanations, or meta-talk. Just write the factual hypothetical answer content.\n\n"
+        f"Question: {query}\n\n"
+        f"Hypothetical Answer:"
+    )
+    
+    res = await get_completion(
+        prompt=hyde_prompt,
+        provider=provider,
+        api_key=api_key,
+        ollama_url=ollama_url,
+        model=model,
+        timeout_val=4.0
+    )
+    return res if res else query
 
-        elif provider == "ollama":
-            url = ollama_url or "http://localhost:11434"
-            model_name = model or "llama3"
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{url.rstrip('/')}/api/chat",
-                    json={
-                        "model": model_name,
-                        "messages": [{"role": "user", "content": rewrite_prompt}],
-                        "stream": False
-                      },
-                      timeout=timeout_val
-                  )
-                response.raise_for_status()
-                data = response.json()
-                response_text = data.get("message", {}).get("content", "")
-
-        elif provider == "custom":
-            if not ollama_url:
-                return current_query
-            model_name = model
-            if not model_name:
-                return current_query
-            headers = {"Content-Type": "application/json"}
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{ollama_url.rstrip('/')}/chat/completions",
-                    headers=headers,
-                    json={
-                        "model": model_name,
-                        "messages": [{"role": "user", "content": rewrite_prompt}],
-                        "stream": False
-                    },
-                    timeout=timeout_val
-                )
-                response.raise_for_status()
-                data = response.json()
-                response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-
-        cleaned_text = response_text.strip().strip('"').strip("'")
-        if cleaned_text:
-            return cleaned_text
-    except Exception as e:
-        print(f"Warning: Conversational query rewrite failed: {e}")
-        
-    return current_query
 
 def rerank_chunks_lexical(query: str, chunks: List[Dict[str, Any]], top_n: int) -> List[Dict[str, Any]]:
     """Reranks chunks by calculating the term distance density of query terms inside the text.
@@ -1397,3 +1451,41 @@ def rerank_chunks_lexical(query: str, chunks: List[Dict[str, Any]], top_n: int) 
     # Sort by the combined lexical/density score
     scored_chunks.sort(key=lambda x: x[1], reverse=True)
     return [item[0] for item in scored_chunks[:top_n]]
+
+
+def enrich_chunks_with_siblings(retrieved_chunks: List[Dict[str, Any]], all_chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Enriches retrieved chunks by prepending and appending adjacent chunks (preceding and succeeding index)
+    to provide the LLM with broader document context.
+    """
+    if not retrieved_chunks or not all_chunks:
+        return retrieved_chunks
+
+    # Build a fast mapping of (doc_id, idx) to chunk text
+    chunk_map = {(c["doc_id"], c["idx"]): c["text"] for c in all_chunks}
+    
+    enriched = []
+    for chunk in retrieved_chunks:
+        doc_id = chunk.get("doc_id")
+        idx = chunk.get("idx")
+        if doc_id is None or idx is None:
+            enriched.append(chunk)
+            continue
+            
+        prev_text = chunk_map.get((doc_id, idx - 1), "")
+        next_text = chunk_map.get((doc_id, idx + 1), "")
+        
+        # Build enriched text representation
+        enriched_text = ""
+        if prev_text:
+            # Highlight context boundaries
+            enriched_text += f"[... {prev_text.strip()} ...]\n"
+        enriched_text += chunk["text"]
+        if next_text:
+            enriched_text += f"\n[... {next_text.strip()} ...]"
+            
+        chunk_copy = dict(chunk)
+        chunk_copy["text"] = enriched_text
+        enriched.append(chunk_copy)
+        
+    return enriched
+

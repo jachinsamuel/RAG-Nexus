@@ -404,6 +404,20 @@ class Database:
         from datetime import datetime
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            
+            # Enforce FIFO cache limit of 500 records to prevent database bloat
+            cursor.execute("SELECT COUNT(*) FROM semantic_cache")
+            count = cursor.fetchone()[0]
+            if count >= 500:
+                cursor.execute("""
+                    DELETE FROM semantic_cache 
+                    WHERE id IN (
+                        SELECT id FROM semantic_cache 
+                        ORDER BY created_at ASC 
+                        LIMIT ?
+                    )
+                """, (count - 499,))
+                
             cache_id = str(uuid.uuid4())
             created_at = datetime.utcnow().isoformat()
             cursor.execute(
