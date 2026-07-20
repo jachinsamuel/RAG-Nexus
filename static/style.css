@@ -291,7 +291,7 @@ body {
     justify-content: center;
     border-radius: 6px;
     transition: all 0.15s ease;
-    opacity: 0;
+    opacity: 1 !important;
 }
 .project-card:hover .project-card-delete, .conv-card:hover .conv-card-delete {
     opacity: 1;
@@ -870,7 +870,7 @@ body {
 
 @keyframes fadeInUp {
     from {
-        opacity: 0;
+        opacity: 1 !important;
         transform: translateY(8px);
     }
     to {
@@ -1195,7 +1195,7 @@ body.theme-light .chat-model-select option {
     overflow: hidden;
     transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
                 opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    opacity: 0;
+    opacity: 1 !important;
 }
 
 .drawer.open {
@@ -1298,8 +1298,11 @@ body.settings-open::before {
 }
 .drawer-tab-btn.active {
     color: #ffffff !important;
-    background: transparent !important;
-    box-shadow: none !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, #007aff, #005ecb) !important;
+    box-shadow: 0 4px 14px rgba(0, 122, 255, 0.4) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+    border-radius: 9999px !important;
 }
 
 .drawer-content {
@@ -1694,7 +1697,7 @@ body.theme-light .settings-group select option {
     to { transform: translateX(0); }
 }
 .toast.fade-out {
-    opacity: 0;
+    opacity: 1 !important;
     transform: translateY(-16px) scale(0.95);
 }
 
@@ -1715,7 +1718,7 @@ body.theme-light .settings-group select option {
     animation: modalFadeIn 0.2s ease;
 }
 @keyframes modalFadeIn {
-    from { opacity: 0; }
+    from { opacity: 1 !important; }
     to { opacity: 1; }
 }
 .modal-card {
@@ -1735,7 +1738,7 @@ body.theme-light .settings-group select option {
     animation: modalSpringUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 @keyframes modalSpringUp {
-    from { opacity: 0; transform: scale(0.9); }
+    from { opacity: 1 !important; transform: scale(0.9); }
     to { opacity: 1; transform: scale(1); }
 }
 .modal-card h3 {
@@ -1781,7 +1784,7 @@ body.theme-light .settings-group select option {
     background: var(--accent-color-hover);
 }
 @keyframes modalFadeIn {
-    from { opacity: 0; }
+    from { opacity: 1 !important; }
     to { opacity: 1; }
 }
 
@@ -1881,7 +1884,7 @@ body.theme-light .settings-group select option {
 @keyframes slideInLeft {
     from {
         width: 0;
-        opacity: 0;
+        opacity: 1 !important;
     }
     to {
         width: 450px;
@@ -2181,7 +2184,7 @@ body.theme-light .settings-group select option {
 }
 
 .nexus-splash-screen.zooming {
-    opacity: 0;
+    opacity: 1 !important;
     transition: opacity 0.6s ease-in-out;
 }
 
@@ -2484,4 +2487,516 @@ body.theme-light .settings-group select option {
 }
 .context-tab-pane:not(.active) {
     display: none;
+}
+
+
+/* === TARGETED MODAL & CONTRAST OVERRIDES === */
+
+/* Dimming Backdrop Overlay */
+body.settings-open::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.4) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    z-index: 1999 !important;
+}
+
+/* Modal Popup Dialog (#settings-drawer) */
+#settings-drawer {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) scale(0.95) !important;
+    width: 620px !important;
+    max-width: 95vw !important;
+    height: 600px !important;
+    max-height: 88vh !important;
+    background: rgba(248, 250, 252, 0.95) !important;
+    backdrop-filter: blur(40px) saturate(220%) !important;
+    -webkit-backdrop-filter: blur(40px) saturate(220%) !important;
+    border: 1px solid rgba(255, 255, 255, 1) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 25px 70px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 1) !important;
+    z-index: 2000 !important;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    opacity: 1 !important;
+}
+
+body.theme-dark #settings-drawer, body.dark-theme #settings-drawer {
+    background: rgba(13, 19, 36, 0.88) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.2) !important;
+}
+
+#settings-drawer.open {
+    display: flex !important;
+    opacity: 1 !important;
+    transform: translate(-50%, -50%) scale(1) !important;
+}
+
+/* Modal Headers & Close Button */
+.drawer-header h3 {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+}
+body.theme-dark .drawer-header h3, body.dark-theme .drawer-header h3 {
+    color: #f8fafc !important;
+}
+
+.drawer-close {
+    color: #475569 !important;
+    font-size: 22px !important;
+}
+body.theme-dark .drawer-close, body.dark-theme .drawer-close {
+    color: #94a3b8 !important;
+}
+
+/* Pill Tab Navigation Bar (.drawer-tabs & .drawer-tab-btn) */
+.drawer-tabs {
+    display: flex !important;
+    position: relative !important;
+    background: #e2e8f0 !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    border-radius: 9999px !important;
+    padding: 4px !important;
+    margin: 14px 24px 8px 24px !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+}
+body.theme-dark .drawer-tabs, body.dark-theme .drawer-tabs {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Sliding Pill Background Indicator */
+.drawer-tab-indicator {
+    position: absolute !important;
+    top: 4px !important;
+    bottom: 4px !important;
+    left: 0 !important;
+    width: 0 !important;
+    background: linear-gradient(135deg, #007aff, #005ecb) !important;
+    border-radius: 9999px !important;
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.4) !important;
+    z-index: 1 !important;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    pointer-events: none !important;
+}
+
+/* Tab Buttons */
+.drawer-tab-btn {
+    flex-grow: 1 !important;
+    position: relative !important;
+    z-index: 2 !important;
+    background: transparent !important;
+    border: none !important;
+    color: #334155 !important;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    padding: 10px 16px !important;
+    cursor: pointer !important;
+    border-radius: 9999px !important;
+    text-align: center !important;
+    box-shadow: none !important;
+}
+body.theme-dark .drawer-tab-btn, body.dark-theme .drawer-tab-btn {
+    color: #cbd5e1 !important;
+}
+
+.drawer-tab-btn.active {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, #007aff, #005ecb) !important;
+    box-shadow: 0 4px 14px rgba(0, 122, 255, 0.4) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+    border-radius: 9999px !important;
+}
+
+/* Form Controls & High Contrast Labels inside Modal */
+.settings-group label, .manual-form h4 {
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+}
+body.theme-dark .settings-group label, body.theme-dark .manual-form h4,
+body.dark-theme .settings-group label, body.dark-theme .manual-form h4 {
+    color: #f8fafc !important;
+}
+
+.radio-label {
+    color: #1e293b !important;
+    font-weight: 600 !important;
+    font-size: 13.5px !important;
+}
+body.theme-dark .radio-label, body.dark-theme .radio-label {
+    color: #e2e8f0 !important;
+}
+
+.radio-label input[type="radio"] {
+    accent-color: #007aff !important;
+}
+
+/* High Contrast Input Boxes */
+.settings-group input[type="text"],
+.settings-group input[type="password"],
+.settings-group textarea,
+.settings-group select,
+.manual-form-group input {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 10px 14px !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    font-size: 13.5px !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+body.theme-dark .settings-group input[type="text"],
+body.theme-dark .settings-group input[type="password"],
+body.theme-dark .settings-group textarea,
+body.theme-dark .settings-group select,
+body.theme-dark .manual-form-group input,
+body.dark-theme .settings-group input[type="text"],
+body.dark-theme .settings-group input[type="password"],
+body.dark-theme .settings-group textarea,
+body.dark-theme .settings-group select,
+body.dark-theme .manual-form-group input {
+    background: rgba(15, 23, 42, 0.7) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    color: #f8fafc !important;
+}
+
+/* Manual Form Group (Inline Input + Button) */
+.manual-form-group {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    align-items: center !important;
+}
+.manual-form-group input {
+    flex: 1 !important;
+}
+.manual-form-group button {
+    margin-top: 0 !important;
+    white-space: nowrap !important;
+    padding: 10px 20px !important;
+    background: #007aff !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    border-radius: 9999px !important;
+}
+
+/* Section Sub-Header Buttons & Lists Fix */
+.section-sub-header .save-settings-btn, #consolidate-memories-btn {
+    width: auto !important;
+    margin: 0 !important;
+    padding: 7px 16px !important;
+    font-size: 12px !important;
+}
+
+.doc-list, .memory-list, .skills-list {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.memory-card, .doc-card, .skill-card {
+    list-style: none !important;
+    background: rgba(255, 255, 255, 0.85) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    border-radius: 12px !important;
+    padding: 10px 14px !important;
+    color: #0f172a !important;
+}
+
+body.theme-dark .memory-card, body.theme-dark .doc-card, body.theme-dark .skill-card,
+body.dark-theme .memory-card, body.dark-theme .doc-card, body.dark-theme .skill-card {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    color: #f8fafc !important;
+}
+
+/* Divider Line */
+.divider {
+    border: 0 !important;
+    height: 1px !important;
+    background: #cbd5e1 !important;
+    margin: 18px 0 !important;
+}
+body.theme-dark .divider, body.dark-theme .divider {
+    background: rgba(255, 255, 255, 0.12) !important;
+}
+
+
+
+
+
+/* === SMOOTH SLIDING PILL MOTION & FORM LAYOUT FIXES === */
+
+.drawer-tabs {
+    display: flex !important;
+    position: relative !important;
+    background: #e2e8f0 !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    border-radius: 9999px !important;
+    padding: 4px !important;
+    margin: 14px 24px 8px 24px !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+}
+body.theme-dark .drawer-tabs, body.dark-theme .drawer-tabs {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Sliding Pill Indicator (Glides between tabs with spring motion) */
+.drawer-tab-indicator {
+    position: absolute !important;
+    top: 4px !important;
+    bottom: 4px !important;
+    left: 0 !important;
+    width: 0 !important;
+    background: linear-gradient(135deg, #007aff, #005ecb) !important;
+    border-radius: 9999px !important;
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.4) !important;
+    z-index: 1 !important;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    pointer-events: none !important;
+    opacity: 1 !important;
+}
+.drawer-tab-indicator.visible {
+    opacity: 1 !important;
+}
+
+/* Tab Buttons */
+.drawer-tab-btn {
+    flex-grow: 1 !important;
+    position: relative !important;
+    z-index: 2 !important;
+    background: transparent !important;
+    border: none !important;
+    color: #334155 !important;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    padding: 10px 16px !important;
+    cursor: pointer !important;
+    border-radius: 9999px !important;
+    text-align: center !important;
+    box-shadow: none !important;
+    transition: color 0.25s ease !important;
+}
+body.theme-dark .drawer-tab-btn, body.dark-theme .drawer-tab-btn {
+    color: #cbd5e1 !important;
+}
+
+.drawer-tab-btn.active {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, #007aff, #005ecb) !important;
+    box-shadow: 0 4px 14px rgba(0, 122, 255, 0.4) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+    border-radius: 9999px !important;
+}
+
+/* Create Custom Skill Stacked Layout Fix */
+.manual-form-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+}
+.manual-form-group input[type="text"],
+.manual-form-group textarea {
+    width: 100% !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 10px 14px !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    font-size: 13.5px !important;
+}
+body.theme-dark .manual-form-group input[type="text"],
+body.theme-dark .manual-form-group textarea,
+body.dark-theme .manual-form-group input[type="text"],
+body.dark-theme .manual-form-group textarea {
+    background: rgba(15, 23, 42, 0.7) !important;
+    border-color: rgba(255, 255, 255, 0.16) !important;
+    color: #f8fafc !important;
+}
+.manual-form-group textarea {
+    min-height: 85px !important;
+    resize: vertical !important;
+}
+.manual-form-group button {
+    align-self: flex-start !important;
+    margin-top: 4px !important;
+    padding: 10px 24px !important;
+    background: #007aff !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    border-radius: 9999px !important;
+}
+
+/* Add Fact to Memory Inline Layout Fix */
+.manual-form-inline {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    align-items: center !important;
+}
+.manual-form-inline input {
+    flex: 1 !important;
+}
+.manual-form-inline button {
+    margin-top: 0 !important;
+    align-self: center !important;
+}
+
+
+
+
+
+
+/* === FRAMER MOTION SPRING ANIMATED PILL SYSTEM === */
+
+.drawer-tabs {
+    display: flex !important;
+    position: relative !important;
+    background: #e2e8f0 !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    border-radius: 9999px !important;
+    padding: 5px !important;
+    margin: 14px 24px 8px 24px !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+}
+
+body.theme-dark .drawer-tabs, body.dark-theme .drawer-tabs {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Hide fragile position-calculated indicator */
+.drawer-tab-indicator {
+    display: none !important;
+}
+
+/* Tab Buttons Base */
+.drawer-tab-btn {
+    flex: 1 1 0% !important;
+    position: relative !important;
+    z-index: 2 !important;
+    background: transparent !important;
+    border: none !important;
+    color: #334155 !important;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    padding: 10px 16px !important;
+    cursor: pointer !important;
+    border-radius: 9999px !important;
+    text-align: center !important;
+    box-shadow: none !important;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease !important;
+}
+
+body.theme-dark .drawer-tab-btn, body.dark-theme .drawer-tab-btn {
+    color: #cbd5e1 !important;
+}
+
+/* Hover state for inactive tabs */
+.drawer-tab-btn:not(.active):hover {
+    background: rgba(0, 122, 255, 0.08) !important;
+    color: #007aff !important;
+}
+
+body.theme-dark .drawer-tab-btn:not(.active):hover,
+body.dark-theme .drawer-tab-btn:not(.active):hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+}
+
+/* GUARANTEED FRAMER MOTION ACTIVE BLUE PILL */
+.drawer-tab-btn.active, button.drawer-tab-btn.active {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, #007aff, #005ecb) !important;
+    box-shadow: 0 4px 18px rgba(0, 122, 255, 0.45) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+    border-radius: 9999px !important;
+    animation: framerPillBounce 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+@keyframes framerPillBounce {
+    0% {
+        transform: scale(0.92);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scale(1.04);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Framer Motion Content Pane Slide In */
+.settings-tab-pane.active {
+    display: flex !important;
+    animation: framerPaneSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes framerPaneSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.99);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+
+/* === DISABLE TEXT SELECTION & COPYING ACROSS UI === */
+body, 
+.sidebar, 
+.drawer, 
+.chat-header, 
+.chat-footer, 
+.drawer-tabs, 
+.drawer-tab-btn, 
+.brand, 
+.category-header, 
+.conv-card, 
+.project-card, 
+.settings-group label, 
+.radio-label, 
+.manual-form, 
+.section-sub-header, 
+.telemetry-card, 
+.agent-flow-strip {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+}
+
+/* Allow selection inside input boxes and textareas so users can still type */
+input, textarea {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
 }

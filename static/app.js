@@ -509,11 +509,15 @@ function openDrawer(drawer) {
     drawer.classList.add('open');
     if (drawer === settingsDrawer) {
         document.body.classList.add('settings-open');
-        setTimeout(() => {
-            const activeBtn = document.querySelector('.drawer-tab-btn.active');
-            if (activeBtn && window.updateTabIndicator) window.updateTabIndicator(activeBtn);
-        }, 50);
     }
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            const activeBtn = drawer.querySelector('.drawer-tab-btn.active');
+            if (activeBtn && window.updateTabIndicator) {
+                window.updateTabIndicator(activeBtn);
+            }
+        }, 60);
+    });
 }
 
 function closeDrawer(drawer) {
@@ -3042,9 +3046,18 @@ const settingsTabPanes = document.querySelectorAll('.settings-tab-pane');
 const tabIndicator = document.getElementById('drawer-tab-indicator');
 
 function updateTabIndicator(activeBtn) {
-    if (!activeBtn || !tabIndicator) return;
-    tabIndicator.style.width = `${activeBtn.offsetWidth}px`;
-    tabIndicator.style.transform = `translateX(${activeBtn.offsetLeft}px)`;
+    if (!activeBtn) return;
+    const parent = activeBtn.closest('.drawer-tabs');
+    if (!parent) return;
+    const indicator = parent.querySelector('.drawer-tab-indicator');
+    if (!indicator) return;
+    const w = activeBtn.offsetWidth || activeBtn.getBoundingClientRect().width;
+    const l = activeBtn.offsetLeft;
+    if (w > 0) {
+        indicator.style.width = `${w}px`;
+        indicator.style.transform = `translateX(${l}px)`;
+        indicator.style.opacity = '1';
+    }
 }
 
 window.updateTabIndicator = updateTabIndicator;
