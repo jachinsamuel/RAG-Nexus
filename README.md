@@ -11,6 +11,12 @@
 
 ## 📽️ Visual Walkthrough & Interface Gallery
 
+### 🎥 Interactive Animated Demonstration
+
+![Nexus Interactive Demo](assets/nexus_demo.gif)
+
+---
+
 ### 🖥️ Workspace Overview (Dark & Light Themes)
 
 | 🌙 Midnight Dark Mode | ☀️ Clean Studio Light Mode |
@@ -28,16 +34,6 @@
 | ⚡ Custom Skills Library | 🤖 Subagent Operations Logger |
 |:---:|:---:|
 | ![Custom Skills Library](assets/nexus_skills_modal.png) | ![Subagent Operations Logger](assets/nexus_agent_logs_modal.png) |
-
----
-
-### 🎥 Interactive Video Demonstration
-
-> **Video Preview**: Explore smooth tab navigation, spring physics motion, and theme toggling in action.
-
-<video src="assets/nexus_demo.webm" controls width="100%" poster="assets/nexus_dark_workspace.png"></video>
-
-*If the inline video player is not supported by your Markdown renderer, [click here to download or play `nexus_demo.webm`](assets/nexus_demo.webm).*
 
 ---
 
