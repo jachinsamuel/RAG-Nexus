@@ -1,6 +1,4 @@
-import os
-
-readme_text = """# Nexus Cognitive RAG Engine
+# Nexus Cognitive RAG Engine
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005587?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
@@ -21,7 +19,7 @@ readme_text = """# Nexus Cognitive RAG Engine
 
 ---
 
-### ⚙️ Configurations Suite & Cognitive Control Panels
+### ⚙️ Configurations Suite & Control Panels
 
 | 🔌 Multi-Provider API & RAG Settings | 📚 Knowledge Catalog & Episodic Memory |
 |:---:|:---:|
@@ -35,9 +33,11 @@ readme_text = """# Nexus Cognitive RAG Engine
 
 ### 🎥 Interactive Video Demonstration
 
-> **Video Preview**: Explore the smooth tab navigation, spring physics motion, and theme toggling in action.
+> **Video Preview**: Explore smooth tab navigation, spring physics motion, and theme toggling in action.
 
-[Download / View WebM Video Demo](assets/nexus_demo.webm)
+<video src="assets/nexus_demo.webm" controls width="100%" poster="assets/nexus_dark_workspace.png"></video>
+
+*If the inline video player is not supported by your Markdown renderer, [click here to download or play `nexus_demo.webm`](assets/nexus_demo.webm).*
 
 ---
 
@@ -105,9 +105,3 @@ The startup script will automatically:
 ## 📄 License
 
 Distributed under the MIT License. Built for seamless local AI intelligence.
-"""
-
-with open('README.md', 'w', encoding='utf-8') as f:
-    f.write(readme_text)
-
-print('Successfully updated README.md with screenshots and video links!')
