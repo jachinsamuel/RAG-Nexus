@@ -1,6 +1,43 @@
-# Nexus Cognitive RAG Engine
+import os
 
-Nexus is an enterprise-grade, ultra-high-performance RAG (Retrieval-Augmented Generation) workspace designed for developers, researchers, and AI enthusiasts. Powered by a unified **Spatial Glassmorphism Interface** with Framer-Motion-inspired spring physics, Nexus delivers a seamless cognitive experience for querying local repositories, interacting with multi-provider LLMs, managing memory facts, executing custom skills, and saving code directly to your local workspace.
+readme_text = """# Nexus Cognitive RAG Engine
+
+[![FastAPI](https://img.shields.io/badge/FastAPI-005587?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
+
+**Nexus** is an enterprise-grade, ultra-high-performance RAG (Retrieval-Augmented Generation) workspace designed for developers, researchers, and AI enthusiasts. Powered by a unified **Spatial Glassmorphism Interface** with Framer-Motion-inspired spring physics, Nexus delivers a seamless cognitive experience for querying local repositories, interacting with multi-provider LLMs, managing memory facts, executing custom skills, and saving code directly to your local workspace.
+
+---
+
+## 📽️ Visual Walkthrough & Interface Gallery
+
+### 🖥️ Workspace Overview (Dark & Light Themes)
+
+| 🌙 Midnight Dark Mode | ☀️ Clean Studio Light Mode |
+|:---:|:---:|
+| ![Nexus Midnight Dark Workspace](assets/nexus_dark_workspace.png) | ![Nexus Studio Light Workspace](assets/nexus_light_workspace.png) |
+
+---
+
+### ⚙️ Configurations Suite & Cognitive Control Panels
+
+| 🔌 Multi-Provider API & RAG Settings | 📚 Knowledge Catalog & Episodic Memory |
+|:---:|:---:|
+| ![API & RAG Configurations](assets/nexus_configurations_modal.png) | ![Knowledge Catalog & Facts](assets/nexus_knowledge_modal.png) |
+
+| ⚡ Custom Skills Library | 🤖 Subagent Operations Logger |
+|:---:|:---:|
+| ![Custom Skills Library](assets/nexus_skills_modal.png) | ![Subagent Operations Logger](assets/nexus_agent_logs_modal.png) |
+
+---
+
+### 🎥 Interactive Video Demonstration
+
+> **Video Preview**: Explore the smooth tab navigation, spring physics motion, and theme toggling in action.
+
+[Download / View WebM Video Demo](assets/nexus_demo.webm)
 
 ---
 
@@ -68,3 +105,9 @@ The startup script will automatically:
 ## 📄 License
 
 Distributed under the MIT License. Built for seamless local AI intelligence.
+"""
+
+with open('README.md', 'w', encoding='utf-8') as f:
+    f.write(readme_text)
+
+print('Successfully updated README.md with screenshots and video links!')
