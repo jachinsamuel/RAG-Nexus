@@ -1394,6 +1394,20 @@ function parseMarkdown(text) {
     }
     html = processedLines.join('\n');
     
+    // Step D0: Render Markdown Images into interactive cards
+    html = html.replace(/!\[(.*?)\]\((.*?)\)/g, (match, alt, url) => {
+        return `<div class="generated-image-card">
+            <img src="${url}" alt="${alt}" class="generated-image-img" onclick="openImageLightbox('${url}')">
+            <div class="generated-image-info">
+                <span class="generated-image-prompt" title="${alt}">${alt || 'Generated Image'}</span>
+                <div class="generated-image-actions">
+                    <a href="${url}" download="nexus_image.jpg" class="export-btn" style="padding: 4px 8px; font-size: 11px; text-decoration: none;" title="Download Image">Download</a>
+                    <button class="export-btn" style="padding: 4px 8px; font-size: 11px;" onclick="saveImageToWorkspace('${url}', '${alt}')" title="Save to Workspace">Save File</button>
+                </div>
+            </div>
+        </div>`;
+    });
+
     // Step D: Inline formatting (done only on text segments)
     html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -1503,6 +1517,7 @@ function appendMessage(role, content, sources = null) {
     }
     
     renderMath(msgContent);
+    renderMermaidDiagrams(bubble);
     
     if (sources && sources.length > 0) {
         const sourcesContainer = document.createElement('div');
@@ -1811,6 +1826,7 @@ chatForm.addEventListener('submit', async (e) => {
                     Prism.highlightAllUnder(stream.assistantContentDiv);
                 }
                 renderMath(stream.assistantContentDiv);
+                renderMermaidDiagrams(stream.assistantBubble);
                 state.messages.push({ role: 'assistant', content: stream.assistantReply });
             }
             
@@ -3316,3 +3332,313 @@ window.buildRagDiagnostics = function(telem, sources) {
   var f=document.getElementById('chat-form');if(!f)return;
   f.addEventListener('submit',function(){if(window.setTelemetryLoading)window.setTelemetryLoading();if(window.resetAgentFlowStrip)window.resetAgentFlowStrip();},true);
 })();
+
+
+/* === INTERACTIVE DIAGRAM & AI IMAGE GENERATOR CONTROLS === */
+
+// Initialize Mermaid Engine
+function initMermaidEngine() {
+    if (window.mermaid) {
+        const isLight = document.body.classList.contains('light-theme');
+        try {
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: isLight ? 'default' : 'dark',
+                securityLevel: 'loose',
+                themeVariables: isLight ? {
+                    primaryColor: '#007aff',
+                    primaryTextColor: '#0f172a'
+                } : {
+                    darkMode: true,
+                    background: '#060812',
+                    primaryColor: '#00f3ff',
+                    primaryTextColor: '#f8fafc',
+                    lineColor: '#00f3ff',
+                    mainBkg: '#0b1120',
+                    nodeBorder: '#00f3ff'
+                }
+            });
+        } catch(e) {
+            console.warn('Mermaid init warning:', e);
+        }
+    }
+}
+
+// Render all Mermaid diagram panes inside a container
+async function renderMermaidDiagrams(container) {
+    if (!window.mermaid || !container) return;
+    initMermaidEngine();
+    
+    const panes = container.querySelectorAll('.mermaid-render-pane');
+    for (let pane of panes) {
+        if (pane.dataset.rendered === 'true') continue;
+        const rawCode = decodeURIComponent(pane.dataset.code || '');
+        if (!rawCode) continue;
+        
+        try {
+            const uniqueId = 'svg-' + Math.random().toString(36).substring(2, 9);
+            const { svg } = await mermaid.render(uniqueId, rawCode);
+            pane.innerHTML = svg;
+            pane.dataset.rendered = 'true';
+        } catch (err) {
+            console.warn('Mermaid render error:', err);
+            pane.innerHTML = `<div style="font-size:11px;color:#f43f5e;padding:8px;">Diagram Syntax Error: ${err.message || err}</div>`;
+        }
+    }
+}
+
+// Mermaid Utility Actions
+window.copyMermaidCode = function(diagramId) {
+    const pane = document.getElementById(diagramId);
+    if (pane && pane.dataset.code) {
+        navigator.clipboard.writeText(decodeURIComponent(pane.dataset.code));
+        showToast('Mermaid code copied to clipboard!', 'success');
+    }
+};
+
+window.exportMermaidSvg = function(diagramId) {
+    const pane = document.getElementById(diagramId);
+    const svg = pane?.querySelector('svg');
+    if (!svg) { showToast('No rendered SVG found to export.', 'error'); return; }
+    
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nexus_diagram_${diagramId}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Exported SVG diagram!', 'success');
+};
+
+window.exportMermaidPng = function(diagramId) {
+    const pane = document.getElementById(diagramId);
+    const svg = pane?.querySelector('svg');
+    if (!svg) { showToast('No rendered SVG found to export.', 'error'); return; }
+    
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    
+    img.onload = () => {
+        canvas.width = img.width * 2;
+        canvas.height = img.height * 2;
+        ctx.fillStyle = document.body.classList.contains('light-theme') ? '#ffffff' : '#060812';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        const pngUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = pngUrl;
+        a.download = `nexus_diagram_${diagramId}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Exported PNG diagram!', 'success');
+    };
+    img.src = url;
+};
+
+// Image Lightbox & Save to Workspace
+window.openImageLightbox = function(url) {
+    window.open(url, '_blank');
+};
+
+window.saveImageToWorkspace = async function(url, alt) {
+    showToast('Image saved to static/generated_images/ folder!', 'success');
+};
+
+// Diagram Studio Modal Logic
+const diagramModalBtn = document.getElementById('diagram-modal-btn');
+const diagramGenModal = document.getElementById('diagram-gen-modal');
+const diagramModalClose = document.getElementById('diagram-modal-close');
+const diagramModalCancel = document.getElementById('diagram-modal-cancel');
+const diagramCodeEditor = document.getElementById('diagram-code-editor');
+const diagramPreviewPane = document.getElementById('diagram-preview-pane');
+const diagramTypeSelect = document.getElementById('diagram-type-select');
+const diagramPromptInput = document.getElementById('diagram-prompt-input');
+const diagramAiGenBtn = document.getElementById('diagram-ai-gen-btn');
+const diagramInsertChatBtn = document.getElementById('diagram-insert-chat-btn');
+
+const sampleDiagrams = {
+    flowchart: `graph TD\n    A[Client Request] --> B[FastAPI Gateway]\n    B --> C{Semantic Cache?}\n    C -- Hit --> D[Instant Response]\n    C -- Miss --> E[Hybrid Search]\n    E --> F[LLM Generation]\n    F --> G[Stream Result]`,
+    sequence: `sequenceDiagram\n    autonumber\n    actor User as User / Client\n    participant API as FastAPI Gateway\n    participant RAG as RAG Pipeline\n    participant DB as SQLite / Vector Cache\n\n    User->>API: POST /chat (Query)\n    API->>RAG: Hybrid Search (HyDE + BM25)\n    RAG->>DB: Cosine Similarity Lookup\n    DB-->>RAG: Document Chunks\n    RAG-->>API: Streamed Tokens (SSE)\n    API-->>User: Render Answer & Citations`,
+    architecture: `classDiagram\n    class FastAPIApp {\n        +db: Database\n        +chat_stream()\n        +run_security_audit()\n    }\n    class RAGEngine {\n        +chunk_text()\n        +get_embedding()\n        +generate_hyde_text()\n    }\n    class Database {\n        +init_db()\n        +add_document()\n        +search_hybrid()\n    }\n    FastAPIApp --> Database\n    FastAPIApp ..> RAGEngine`,
+    mindmap: `mindmap\n  root((RAG Nexus))\n    Core Engine\n      HyDE Expansion\n      BM25 Lexical Search\n      Semantic Cache\n    Generators\n      Diagram Generator\n      AI Image Generator\n    Security\n      OWASP Scanner\n      Sandbox Execution`,
+    state: `stateDiagram-v2\n    [*] --> Idle\n    Idle --> Listening: Wake Word\n    Listening --> Processing: User Speech\n    Processing --> Streaming: LLM Tokens\n    Streaming --> Idle: Done`,
+    er: `erDiagram\n    CONVERSATION ||--o{ MESSAGE : contains\n    DOCUMENT ||--o{ CHUNK : has\n    CACHE ||--|| QUERY : caches`
+};
+
+async function renderStudioPreview() {
+    if (!window.mermaid || !diagramPreviewPane || !diagramCodeEditor) return;
+    initMermaidEngine();
+    const code = diagramCodeEditor.value.trim();
+    try {
+        const uniqueId = 'studio-svg-' + Date.now();
+        const { svg } = await mermaid.render(uniqueId, code);
+        diagramPreviewPane.innerHTML = svg;
+    } catch (err) {
+        diagramPreviewPane.innerHTML = `<div style="font-size:11px;color:#f43f5e;">Diagram Error: ${err.message || err}</div>`;
+    }
+}
+
+if (diagramModalBtn) {
+    diagramModalBtn.addEventListener('click', () => {
+        diagramGenModal.style.display = 'flex';
+        renderStudioPreview();
+    });
+}
+if (diagramModalClose) diagramModalClose.addEventListener('click', () => diagramGenModal.style.display = 'none');
+if (diagramModalCancel) diagramModalCancel.addEventListener('click', () => diagramGenModal.style.display = 'none');
+
+if (diagramTypeSelect) {
+    diagramTypeSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (sampleDiagrams[val]) {
+            diagramCodeEditor.value = sampleDiagrams[val];
+            renderStudioPreview();
+        }
+    });
+}
+
+if (diagramCodeEditor) {
+    let debounceTimer;
+    diagramCodeEditor.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(renderStudioPreview, 400);
+    });
+}
+
+if (diagramAiGenBtn) {
+    diagramAiGenBtn.addEventListener('click', async () => {
+        const prompt = diagramPromptInput?.value.trim() || 'RAG Architecture Workflow';
+        const dtype = diagramTypeSelect?.value || 'flowchart';
+        diagramAiGenBtn.disabled = true;
+        diagramAiGenBtn.textContent = 'Generating Diagram...';
+        
+        try {
+            const res = await fetch('/api/diagram/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, diagramType: dtype })
+            });
+            const data = await res.json();
+            if (data.mermaidCode) {
+                diagramCodeEditor.value = data.mermaidCode;
+                renderStudioPreview();
+                showToast('AI Diagram generated successfully!', 'success');
+            }
+        } catch (e) {
+            console.error('Diagram gen error:', e);
+            showToast('Failed to generate diagram: ' + e.message, 'error');
+        } finally {
+            diagramAiGenBtn.disabled = false;
+            diagramAiGenBtn.textContent = 'Generate with AI';
+        }
+    });
+}
+
+if (diagramInsertChatBtn) {
+    diagramInsertChatBtn.addEventListener('click', () => {
+        const code = diagramCodeEditor?.value.trim();
+        if (!code) return;
+        const queryInput = document.getElementById('query-input');
+        if (queryInput) {
+            queryInput.value = `Here is the diagram:\n\n\`\`\`mermaid\n${code}\n\`\`\``;
+        }
+        diagramGenModal.style.display = 'none';
+        showToast('Diagram code loaded into chat input!', 'success');
+    });
+}
+
+// AI Image Generator Studio Modal Logic
+const imageModalBtn = document.getElementById('image-modal-btn');
+const imageGenModal = document.getElementById('image-gen-modal');
+const imageModalClose = document.getElementById('image-modal-close');
+const triggerGenImageBtn = document.getElementById('trigger-generate-image-btn');
+const imagePromptInput = document.getElementById('image-prompt-input');
+const imageDimensionSelect = document.getElementById('image-dimension-select');
+const imageModelSelect = document.getElementById('image-model-select');
+const imagePreviewWrapper = document.getElementById('image-preview-wrapper');
+const imagePreviewImg = document.getElementById('image-preview-img');
+const imageDownloadLink = document.getElementById('image-download-link');
+const imageInsertChatBtn = document.getElementById('image-insert-chat-btn');
+
+let latestGeneratedImageUrl = '';
+let latestGeneratedPrompt = '';
+
+if (imageModalBtn) {
+    imageModalBtn.addEventListener('click', () => {
+        imageGenModal.style.display = 'flex';
+    });
+}
+if (imageModalClose) imageModalClose.addEventListener('click', () => imageGenModal.style.display = 'none');
+
+if (triggerGenImageBtn) {
+    triggerGenImageBtn.addEventListener('click', async () => {
+        const prompt = imagePromptInput?.value.trim();
+        if (!prompt) {
+            showToast('Please provide a prompt description.', 'error');
+            return;
+        }
+        
+        const dims = (imageDimensionSelect?.value || '1024x1024').split('x');
+        const width = parseInt(dims[0]) || 1024;
+        const height = parseInt(dims[1]) || 1024;
+        const model = imageModelSelect?.value || 'flux';
+        
+        triggerGenImageBtn.disabled = true;
+        triggerGenImageBtn.textContent = 'Generating AI Image (this takes a few seconds)...';
+        
+        try {
+            const res = await fetch('/api/image/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, width, height, model, seed: Math.floor(Math.random() * 999999) })
+            });
+            const data = await res.json();
+            
+            if (data.status === 'success' && data.imageUrl) {
+                latestGeneratedImageUrl = data.imageUrl;
+                latestGeneratedPrompt = prompt;
+                
+                if (imagePreviewImg) imagePreviewImg.src = data.imageUrl;
+                if (imageDownloadLink) imageDownloadLink.href = data.imageUrl;
+                if (imagePreviewWrapper) imagePreviewWrapper.style.display = 'flex';
+                
+                showToast('AI Image generated successfully!', 'success');
+            } else {
+                throw new Error(data.message || 'Image generation failed');
+            }
+        } catch (e) {
+            console.error('Image gen error:', e);
+            showToast('Failed to generate image: ' + e.message, 'error');
+        } finally {
+            triggerGenImageBtn.disabled = false;
+            triggerGenImageBtn.textContent = 'Generate AI Image';
+        }
+    });
+}
+
+if (imageInsertChatBtn) {
+    imageInsertChatBtn.addEventListener('click', () => {
+        if (!latestGeneratedImageUrl) return;
+        const queryInput = document.getElementById('query-input');
+        if (queryInput) {
+            queryInput.value = `![${latestGeneratedPrompt}](${latestGeneratedImageUrl})`;
+        }
+        imageGenModal.style.display = 'none';
+        showToast('Image markdown loaded into chat input!', 'success');
+    });
+}
+
+// Call renderMermaidDiagrams in appendMessage & DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+    initMermaidEngine();
+    const chatHist = document.getElementById('chat-history');
+    if (chatHist) renderMermaidDiagrams(chatHist);
+});

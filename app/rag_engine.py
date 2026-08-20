@@ -626,7 +626,9 @@ async def generate_response_stream(
         "Do NOT output disclaimers about hosting, servers, or domain registration. Get straight to the code. "
         "Format all code blocks using correct Markdown syntax (e.g., ```html ... ```). "
         "You must NEVER use emojis under any circumstances in your responses. Keep all text highly professional, clean, and developer-oriented. "
-        "If source document context is provided, ground your answers in it and cite relevant details; otherwise, use your full software engineering capabilities."
+        "If source document context is provided, ground your answers in it and cite relevant details; otherwise, use your full software engineering capabilities. "
+        "When the user asks to draw, create, or generate any diagram (flowchart, sequence diagram, architecture diagram, class diagram, mindmap, state diagram, ERD, etc.), ALWAYS output a valid, complete Mermaid.js code block formatted as ```mermaid ... ```. Never output ASCII art. "
+        "When the user asks to draw, create, or generate an image or picture (concept art, UI mockups, logos, illustrations, scenery, etc.), ALWAYS output Markdown image syntax formatted as ![detailed_prompt](https://image.pollinations.ai/prompt/<url_encoded_prompt>?width=1024&height=1024&nologo=true) using the user prompt with spaces replaced by %20 so it renders instantly as an interactive image card."
     )
     # Apply local sliding window memory (keep last 10 messages verbatim) to prevent context/token limit overflows
     if len(messages) > 10:

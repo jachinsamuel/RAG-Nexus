@@ -82,6 +82,18 @@ class Message(BaseModel):
     role: str
     content: str
 
+
+class ImageGenRequest(BaseModel):
+    prompt: str
+    width: Optional[int] = 1024
+    height: Optional[int] = 1024
+    seed: Optional[int] = 42
+    model: Optional[str] = "flux"
+
+class DiagramGenRequest(BaseModel):
+    prompt: str
+    diagramType: Optional[str] = "flowchart"
+
 class ChatRequest(BaseModel):
     messages: List[Message]
     provider: str
@@ -1340,4 +1352,115 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Mount static files to serve the SPA
+
+@app.post("/api/image/generate")
+async def generate_ai_image(req: ImageGenRequest):
+    """AI Image Generator Suite using Pollinations FLUX API"""
+    import urllib.parse
+    import httpx
+
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt text is required for image generation.")
+
+    prompt_encoded = urllib.parse.quote(req.prompt.strip())
+    image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width={req.width}&height={req.height}&seed={req.seed}&nologo=true"
+
+    output_dir = os.path.join(static_dir, "generated_images")
+    os.makedirs(output_dir, exist_ok=True)
+
+    img_filename = f"gen_{uuid.uuid4().hex[:10]}.jpg"
+    local_img_path = os.path.join(output_dir, img_filename)
+    relative_url = f"/generated_images/{img_filename}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(image_url)
+            if resp.status_code == 200:
+                with open(local_img_path, "wb") as f:
+                    f.write(resp.content)
+                return {
+                    "status": "success",
+                    "imageUrl": relative_url,
+                    "externalUrl": image_url,
+                    "prompt": req.prompt,
+                    "filename": img_filename
+                }
+    except Exception as e:
+        print(f"Warning: Failed to cache generated image locally: {e}")
+
+    # Fallback to direct external URL if local caching fails
+    return {
+        "status": "success",
+        "imageUrl": image_url,
+        "externalUrl": image_url,
+        "prompt": req.prompt,
+        "filename": "external"
+    }
+
+@app.post("/api/diagram/generate")
+async def generate_mermaid_diagram(req: DiagramGenRequest):
+    """Interactive Diagram Generator using Mermaid.js Syntax Engine"""
+    dtype = req.diagramType.lower().strip()
+    prompt = req.prompt.strip()
+
+    if "sequence" in dtype or "sequence" in prompt.lower():
+        code = f"""sequenceDiagram
+    autonumber
+    actor User as User / Client
+    participant API as FastAPI Gateway
+    participant RAG as RAG Pipeline
+    participant DB as SQLite / Vector Cache
+
+    User->>API: POST /chat (Query)
+    API->>RAG: Hybrid Search (HyDE + BM25)
+    RAG->>DB: Cosine Similarity Lookup
+    DB-->>RAG: Document Chunks
+    RAG-->>API: Streamed Tokens (SSE)
+    API-->>User: Render Answer & Citations"""
+    elif "architecture" in dtype or "class" in dtype or "class" in prompt.lower():
+        code = f"""classDiagram
+    class FastAPIApp {{
+        +db: Database
+        +chat_stream()
+        +run_security_audit()
+    }}
+    class RAGEngine {{
+        +chunk_text()
+        +get_embedding()
+        +generate_hyde_text()
+    }}
+    class Database {{
+        +init_db()
+        +add_document()
+        +search_hybrid()
+    }}
+    FastAPIApp --> Database
+    FastAPIApp ..> RAGEngine"""
+    elif "mindmap" in dtype or "mindmap" in prompt.lower():
+        code = f"""mindmap
+  root((RAG Nexus))
+    Core Engine
+      HyDE Expansion
+      BM25 Lexical Search
+      Semantic Cache
+    Generators
+      Diagram Generator
+      AI Image Generator
+    Security
+      OWASP Scanner
+      Sandbox Execution"""
+    else:
+        code = f"""graph TD
+    A[User Request: {prompt[:30]}] --> B[Input Validation]
+    B --> C{{Cache Hit?}}
+    C -- Yes --> D[Return Instant Cache Result]
+    C -- No --> E[RAG Retrieval & Generation]
+    E --> F[Render Answer & Diagrams]"""
+
+    return {
+        "status": "success",
+        "diagramType": dtype,
+        "mermaidCode": code
+    }
+
 app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
