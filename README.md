@@ -3,25 +3,29 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-005587?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Mermaid](https://img.shields.io/badge/Mermaid-Interactive_Diagrams-ff3670?style=for-the-badge)](https://mermaid.js.org/)
+[![FLUX](https://img.shields.io/badge/FLUX.1-AI_Image_Gen-00f3ff?style=for-the-badge)](https://pollinations.ai/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-**Nexus** is an enterprise-grade, ultra-high-performance RAG (Retrieval-Augmented Generation) workspace designed for developers, researchers, and AI enthusiasts. Powered by a unified **Spatial Glassmorphism Interface** with Framer-Motion-inspired spring physics, Nexus delivers a seamless cognitive experience for querying local repositories, interacting with multi-provider LLMs, managing memory facts, executing custom skills, and saving code directly to your local workspace.
+**Nexus** is an enterprise-grade, ultra-high-performance RAG (Retrieval-Augmented Generation) cognitive assistant and developer workstation. Powered by a unified **Spatial Glassmorphism Interface**, Nexus delivers real-time document retrieval, in-chat interactive Mermaid diagram generation, instant FLUX.1 image creation, multi-provider LLM orchestration, and seamless local workspace code execution.
 
 ---
 
 ## 📽️ Visual Walkthrough & Interface Gallery
-
-### 🎥 Interactive Animated Demonstration
-
-![Nexus Interactive Demo](assets/nexus_demo.gif)
-
----
 
 ### 🖥️ Workspace Overview (Dark & Light Themes)
 
 | 🌙 Midnight Dark Mode | ☀️ Clean Studio Light Mode |
 |:---:|:---:|
 | ![Nexus Midnight Dark Workspace](assets/nexus_dark_workspace.png) | ![Nexus Studio Light Workspace](assets/nexus_light_workspace.png) |
+
+---
+
+### 🎨 In-Chat AI Image & Diagram Generators
+
+| 🖼️ In-Chat AI Image Generation | 📊 Interactive Mermaid SVG Diagrams |
+|:---:|:---:|
+| ![AI Image Card](assets/nexus_image_fixed_frame.png) | ![Diagram Studio](assets/nexus_diagram_studio_modal.png) |
 
 ---
 
@@ -37,35 +41,34 @@
 
 ---
 
-## ✨ Core Features & Cognitive Highlights
+## ✨ Core Features & Capabilities
 
-### 💎 Spatial Glassmorphism Interface & Motion Design
-* **Unified Spatial Glass Architecture**: Clean translucent frosted glass panels with hardware backdrop blurring (`backdrop-filter: blur(28px) saturate(190%)`), subtle ambient radial mesh glows, and high-contrast typography (`Inter` + `Outfit`).
-* **Dark Glass (Midnight) & Light Glass (Studio)**: Instant one-click switching between dark navy Vantablack charcoal and clean white studio modes.
-* **Framer-Motion Fluid Micro-Animations**: Built-in spring physics driving tactile button compressions, smooth popups, and dynamic sliding pill tab indicators (`.drawer-tab-indicator`).
+### 🎨 In-Chat Diagram & Image Generator
+* **Automatic Diagram Generation (Mermaid.js SVG)**:
+  * Simply ask in chat (*"Draw a flowchart of auth flow"*, *"Generate a sequence diagram for RAG"*, *"Create a class diagram"*).
+  * Automatically renders interactive SVG diagrams with **Copy Code**, **Export SVG**, and **Export PNG** download buttons.
+* **Automatic High-Resolution AI Image Generation (FLUX.1)**:
+  * Simply ask in chat (*"Generate an image of a futuristic supercar"*, *"Draw a picture of a cyberpunk hacker desk"*).
+  * Renders interactive image showcase cards with **1-Click Download**, **Save File to Workspace**, and **Full-Resolution Lightbox**.
 
-### 🧠 Advanced RAG & Vector Engine
-* **Multi-Provider LLM Integration**: Connect directly to Google Gemini, Anthropic Claude, OpenAI, and custom OpenAI-compatible endpoints (Groq, NVIDIA NIM, OpenRouter, DeepSeek, etc.).
-* **Automatic Ollama Auto-Scanner**: Automatically scans local Ollama instances on ports `11434` / `11435`, detecting installed models for instant zero-configuration local AI inference.
-* **Sentence-Boundary Semantic Chunking**: Ingests document text (`.pdf`, `.txt`, `.md`) and splits paragraphs strictly at sentence transitions, preserving semantic cohesion in embedding vectors and yielding higher retrieval accuracy.
-* **Hybrid Vector Retrieval & Grounding**: Ingests, parses, and vector-indexes local workspace files with custom chunk sizes and similarity threshold controls.
-* **Live Web Search Grounding**: Toggle DuckDuckGo web search to ground AI responses with real-time web references and interactive source badges.
+### 🧠 Advanced RAG & Vector Retrieval Engine
+* **Multi-Provider LLM Switcher**: Connect to Google Gemini, OpenAI (GPT-4o), Anthropic Claude, NVIDIA NIM (`integrate.api.nvidia.com`), Groq, and Local Ollama.
+* **Hybrid Search (Vector Cosine + BM25 Lexical)**: Reciprocal Rank Fusion (RRF) combining dense semantic embeddings and keyword matching.
+* **HyDE (Hypothetical Document Embeddings)**: Expands query vectors with hypothetical context chunks to maximize retrieval accuracy.
+* **Semantic Query Caching**: Returns instant responses for duplicate or near-duplicate queries ($\ge 96\%$ similarity) in **under 50ms**.
+* **Sibling Context Enrichment**: Automatically enriches retrieved document chunks with surrounding paragraphs for full context comprehension.
 
-### ⚡ Performance & Cognitive Optimizations
-* **Semantic Query Caching**: Bypasses the LLM entirely for matching questions ($\ge 96\%$ cosine similarity matching of query embeddings in SQLite), serving cached answers in **under 50ms**.
-* **Lexical Density Reranking**: Retrieves a larger pool of 25 chunks and reranks them locally on the CPU using Jaccard term-closeness and token gap density, packing only the most relevant contexts into the prompt to reduce token consumption.
-* **Conversational Query Reformulation**: Analyzes the active conversation history to resolve pronouns ("it", "that", "this") and context, generating standalone search queries before performing RAG database retrieval.
-* **Context Sliding Window**: Limits verbatim chat logs to the last 10 messages, preventing latency degradation and HTTP 400 crashes on extremely long chat sessions.
+### 🤖 Autonomous Multi-Agent Team Loop
+* **4-Turn Multi-Agent Coordination**:
+  * 🔍 **Researcher Agent**: Analyzes request, performs web searches, and drafts implementation blueprint.
+  * 💻 **Developer Agent**: Writes and refines code files in sandbox.
+  * 🛡️ **Critic / Auditor Agent**: Runs security checks and validates output.
+  * ⚡ **Finalizer**: Produces production-ready response.
 
 ### 💻 Developer Productivity Suite
-* **Interactive Code Diff Viewer**: Compares code blocks against existing files on `Save to Workspace` and shows a side-by-side green/red LCS (Longest Common Subsequence) diff modal to verify changes before writing.
-* **Secure Code Execution Sandbox**: Execute Python/JS snippets in a secure local subprocess with a **5-second timeout safeguard** to display console logs, outputs, and exit codes directly in a terminal pane below the code.
-* **Autonomous Multi-Agent Loop**: Upgrades Agent Mode into a real 4-turn backend cycle (**Researcher** plan $\rightarrow$ **Developer** draft $\rightarrow$ **Critic** audit $\rightarrow$ **Developer** final refined output) streamed live and logged to the subagent log simultaneously.
-* **Subagent Operations Logger**: Dedicated **Agent Logs** tab inside the settings drawer to track subagent thoughts, timestamps, and roles in real-time.
-* **Fact Profile Memory Consolidation**: Automatically groups similar extracted profile facts (similarity $\ge 0.82$) and merges duplicate entries via background LLM calls. Included a manual **Consolidate** button in the Knowledge tab.
-* **Text-to-Speech Playback**: Reads assistant responses aloud using Web Speech API with automatic markdown and code block sanitization.
-* **Visual File Attachment Chips**: Attach local workspace files via `/file [path]` autocomplete into interactive visual capsule chips above the prompt bar.
-* **Complete Dialogue Portability**: Export full chat conversations to structured Markdown files anytime with a single click.
+* **Interactive Code Sandbox**: Executes Python and JavaScript code snippets in an isolated local sandbox with a 5-second safeguard timeout.
+* **Code Diff Modal**: Side-by-side green/red LCS diff viewer before saving modified files to the active workspace.
+* **Audio Voice Engine**: Speech-to-Text voice query transcription & Neural Text-to-Speech playback.
 
 ---
 
@@ -91,13 +94,13 @@ The startup script will automatically:
 
 ## 🛠️ Technology Stack
 
-* **Backend Architecture**: Python 3.9+, FastAPI, Uvicorn, SQLite Vector Engine
-* **Frontend Architecture**: HTML5, Vanilla JavaScript (ES6+), Modern CSS3 Glassmorphism
-* **Typography & Icons**: Inter Font Family, Feather Icons, Lucide Icons
-* **Syntax & Math Rendering**: Prism.js (Midnight Syntax), KaTeX (High-Fidelity LaTeX Math)
+* **Backend**: Python 3.9+, FastAPI, Uvicorn, SQLite Vector Engine, HTTPX
+* **Frontend**: HTML5, Vanilla JavaScript (ES6+), Modern CSS3 Glassmorphism
+* **Generative Visuals**: Mermaid.js v10 (SVG Diagrams), Pollinations AI / FLUX.1 (Image Generation)
+* **Syntax & Math Rendering**: Prism.js (Midnight Syntax), KaTeX (LaTeX Math)
 
 ---
 
 ## 📄 License
 
-Distributed under the MIT License. Built for seamless local AI intelligence.
+Distributed under the MIT License. Built for local cognitive AI workflows.

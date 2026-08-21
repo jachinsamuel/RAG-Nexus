@@ -1394,18 +1394,34 @@ function parseMarkdown(text) {
     }
     html = processedLines.join('\n');
     
-    // Step D0: Render Markdown Images into interactive cards
-    html = html.replace(/!\[(.*?)\]\((.*?)\)/g, (match, alt, url) => {
-        return `<div class="generated-image-card">
-            <img src="${url}" alt="${alt}" class="generated-image-img" onclick="openImageLightbox('${url}')">
-            <div class="generated-image-info">
-                <span class="generated-image-prompt" title="${alt}">${alt || 'Generated Image'}</span>
-                <div class="generated-image-actions">
-                    <a href="${url}" download="nexus_image.jpg" class="export-btn" style="padding: 4px 8px; font-size: 11px; text-decoration: none;" title="Download Image">Download</a>
-                    <button class="export-btn" style="padding: 4px 8px; font-size: 11px;" onclick="saveImageToWorkspace('${url}', '${alt}')" title="Save to Workspace">Save File</button>
+    // Step C2: Extract Markdown Images into clean block placeholders
+    const images = [];
+    html = html.replace(/!\[(.*?)\]\((.*?)\)/g, (match, alt, rawUrl) => {
+        const cleanUrl = rawUrl.replace(/&amp;/g, '&');
+        const imgIndex = images.length;
+        const cleanName = (alt || 'image').replace(/[^a-zA-Z0-9_\-]/g, '_');
+        images.push(`<div class="image-showcase-card">
+            <div class="image-showcase-preview" onclick="openImageLightbox('${cleanUrl}')" title="Click to view full resolution">
+                <img src="${cleanUrl}" alt="${alt}" class="image-showcase-img" loading="lazy">
+            </div>
+            <div class="image-showcase-footer">
+                <div class="image-showcase-meta">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    <span class="meta-title" title="${alt}">${alt || 'Generated Image'}</span>
+                </div>
+                <div class="image-showcase-btns">
+                    <a href="${cleanUrl}" download="nexus_${cleanName}.jpg" class="showcase-btn download" title="Download High-Res Image">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        <span>Download</span>
+                    </a>
+                    <button type="button" class="showcase-btn save" onclick="saveImageToWorkspace('${cleanUrl}', '${alt}')" title="Save to Workspace">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                        <span>Save</span>
+                    </button>
                 </div>
             </div>
-        </div>`;
+        </div>`);
+        return `\n\n__IMAGE_BLOCK_${imgIndex}__\n\n`;
     });
 
     // Step D: Inline formatting (done only on text segments)
@@ -1430,6 +1446,13 @@ function parseMarkdown(text) {
         if (tableMatch) {
             const idx = parseInt(tableMatch[1]);
             return tables[idx];
+        }
+
+        // Restore image blocks if matched
+        const imageMatch = trimmed.match(/^__IMAGE_BLOCK_(\d+)__$/);
+        if (imageMatch) {
+            const idx = parseInt(imageMatch[1]);
+            return images[idx];
         }
 
         // Render Headings
@@ -1587,9 +1610,13 @@ chatForm.addEventListener('submit', async (e) => {
     const query = queryInput.value.trim();
     if (!query) return;
     
+    // Check if query is an Image Generation request
+    const qLower = query.toLowerCase().trim();
+    const isImageQuery = ["generate an image", "generate image", "create an image", "create image", "draw an image", "draw a picture", "draw image", "make an image"].some(t => qLower.includes(t));
+
     // Check Settings configurations: If provider is selected and API key/URL is missing, alert the user!
     const activeProvider = state.settings.provider;
-    if (activeProvider === 'gemini' && !state.settings.apiKey.trim()) {
+    if (!isImageQuery && activeProvider === 'gemini' && !state.settings.apiKey.trim()) {
         showToast("Gemini API key is required. Please set it in configurations.", "error");
         openDrawer(settingsDrawer);
         return;

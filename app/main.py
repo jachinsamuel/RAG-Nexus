@@ -800,6 +800,56 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
         if not request.messages:
             raise HTTPException(status_code=400, detail="No conversation messages found.")
         query = request.messages[-1].content
+        # --- Smart In-Chat Image Generation Interceptor ---
+        import urllib.parse
+        clean_query_lower = query.lower().strip()
+        image_triggers = [
+            "generate an image of", "generate image of", "generate image:", 
+            "create an image of", "create image of", "draw an image of", 
+            "draw a picture of", "draw image of", "paint an image of", 
+            "generate a photo of", "create a photo of", "generate a picture of",
+            "make an image of", "make a photo of", "make a picture of"
+        ]
+        
+        is_image_request = any(clean_query_lower.startswith(trig) or f" {trig} " in f" {clean_query_lower} " for trig in image_triggers)
+        if is_image_request:
+            prompt_desc = query.strip()
+            for trig in image_triggers:
+                if trig in clean_query_lower:
+                    idx = clean_query_lower.find(trig) + len(trig)
+                    prompt_desc = query[idx:].strip(" :.-")
+                    break
+            
+            if not prompt_desc:
+                prompt_desc = query.strip()
+                
+            encoded_prompt = urllib.parse.quote(prompt_desc)
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+            
+            async def image_event_generator():
+                yield f"event: conv_id\ndata: {json.dumps({'conversationId': request.conversationId})}\n\n"
+                response_text = f"Here is the generated image of **{prompt_desc}**:\n\n![{prompt_desc}]({image_url})\n\n"
+                
+                # Stream out tokens
+                for chunk in [f"Here is the generated image of **{prompt_desc}**:\n\n", f"![{prompt_desc}]({image_url})\n\n"]:
+                    yield f"event: text\ndata: {json.dumps(chunk)}\n\n"
+                    await asyncio.sleep(0.05)
+                    
+                # Save assistant response to DB
+                try:
+                    db.add_message(
+                        msg_id=str(uuid.uuid4()),
+                        conv_id=request.conversationId,
+                        role="assistant",
+                        content=response_text,
+                        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    )
+                except Exception as dbe:
+                    print(f"Warning: Failed to save image reply to db: {dbe}")
+                    
+                yield "event: done\ndata: {}\n\n"
+                
+            return StreamingResponse(image_event_generator(), media_type="text/event-stream")
         
         # Optimize search query using history (Conversational Query Reformulation)
         search_query = query

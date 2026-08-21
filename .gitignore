@@ -10,15 +10,26 @@ __pycache__/
 *$py.class
 *.pyd
 *.pyo
+*.pytest_cache/
+.coverage
+htmlcov/
 
 # Database
 *.db
 *.sqlite3
+*.sqlite
 
-# Local environment configuration
+# Local environment configuration & secrets
 .env
 .env.*
 secrets.json
+*.local
+
+# Static & media generated files
+static/generated_images/
+assets/video_temp/
+assets/*_debug_*.png
+assets/*_inspect_*.png
 
 # IDE / Editor configurations
 .vscode/
@@ -32,3 +43,4 @@ secrets.json
 # OS generated files
 .DS_Store
 Thumbs.db
+desktop.ini
