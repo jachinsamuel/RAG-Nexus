@@ -828,12 +828,11 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
             
             async def image_event_generator():
                 yield f"event: conv_id\ndata: {json.dumps({'conversationId': request.conversationId})}\n\n"
-                response_text = f"Here is the generated image of **{prompt_desc}**:\n\n![{prompt_desc}]({image_url})\n\n"
+                response_text = f"![{prompt_desc}]({image_url})\n\n"
                 
-                # Stream out tokens
-                for chunk in [f"Here is the generated image of **{prompt_desc}**:\n\n", f"![{prompt_desc}]({image_url})\n\n"]:
-                    yield f"event: text\ndata: {json.dumps(chunk)}\n\n"
-                    await asyncio.sleep(0.05)
+                # Stream out clean image card directly
+                yield f"event: text\ndata: {json.dumps(response_text)}\n\n"
+                await asyncio.sleep(0.05)
                     
                 # Save assistant response to DB
                 try:
