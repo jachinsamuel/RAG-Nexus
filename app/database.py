@@ -1,7 +1,7 @@
 import sqlite3
 import json
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class Database:
     def __init__(self, db_path: str = "rag.db"):
@@ -61,7 +61,7 @@ class Database:
                 )
             """)
             
-            # Table for storing profile memory facts
+            # Table for storing profile memories (extracted user facts)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS profile_memories (
                     id TEXT PRIMARY KEY,
@@ -71,63 +71,29 @@ class Database:
                 )
             """)
             
-            # Table for storing learned skills
+            # Table for storing custom skills / prompt workflows
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS skills (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     description TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    embedding TEXT NOT NULL
-                )
-            """)
-            
-            # Table for semantic query cache
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS semantic_cache (
-                    id TEXT PRIMARY KEY,
-                    query_text TEXT NOT NULL,
-                    embedding TEXT NOT NULL,
-                    response_text TEXT NOT NULL,
-                    chat_model TEXT NOT NULL,
+                    code_snippet TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
             """)
             
-            # Seed default skills if empty
-            cursor.execute("SELECT COUNT(*) FROM skills")
-            if cursor.fetchone()[0] == 0:
-                import uuid
-                from datetime import datetime
-                default_skills = [
-                    {
-                        "name": "refactor-code",
-                        "description": "Refactor and optimize code for readability, performance, and best practices.",
-                        "content": "When the user asks to refactor or optimize code, review the syntax, identify performance bottlenecks or bad practices, and output a clean, refactored version with explanations."
-                    },
-                    {
-                        "name": "summarize-text",
-                        "description": "Generate concise, structured summaries from long documents or text chunks.",
-                        "content": "When requested to summarize, read the context carefully and extract the core findings, key metrics, and actionable items, formatting them into clear sections."
-                    },
-                    {
-                        "name": "debug-assistant",
-                        "description": "Identify bugs, trace syntax errors, and supply complete working bugfixes.",
-                        "content": "When debugging, explain why the error happened, and provide the exact replacement code block along with recommendations to prevent it in the future."
-                    },
-                    {
-                        "name": "latex-converter",
-                        "description": "Translate standard math equations and text descriptions into LaTeX syntax.",
-                        "content": "When translating formulas to LaTeX, ensure proper formatting using $$ for block equations and $ for inline equations."
-                    }
-                ]
-                dummy_emb = json.dumps([0.0] * 1536)
-                for ds in default_skills:
-                    cursor.execute(
-                        "INSERT INTO skills (id, name, description, content, created_at, embedding) VALUES (?, ?, ?, ?, ?, ?)",
-                        (str(uuid.uuid4()), ds["name"], ds["description"], ds["content"], datetime.now().strftime("%Y-%m-%d %H:%M:%S"), dummy_emb)
-                    )
+            # Table for semantic vector query caching
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS query_cache (
+                    id TEXT PRIMARY KEY,
+                    query_hash TEXT NOT NULL,
+                    query_text TEXT NOT NULL,
+                    query_embedding TEXT NOT NULL,
+                    cached_response TEXT NOT NULL,
+                    sources TEXT,
+                    created_at TEXT NOT NULL
+                )
+            """)
             
             conn.commit()
 
@@ -206,11 +172,22 @@ class Database:
             return chunks
 
     # --- Conversations History ---
+    def ensure_conversation_exists(self, conv_id: str, title: str = "New Chat", created_at: str = ""):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM conversations WHERE id = ?", (conv_id,))
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO conversations (id, title, created_at) VALUES (?, ?, ?)",
+                    (conv_id, title, created_at)
+                )
+                conn.commit()
+
     def add_conversation(self, conv_id: str, title: str, created_at: str):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO conversations (id, title, created_at) VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO conversations (id, title, created_at) VALUES (?, ?, ?)",
                 (conv_id, title, created_at)
             )
             conn.commit()
@@ -226,6 +203,7 @@ class Database:
     def delete_conversation(self, conv_id: str):
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
             cursor.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
             conn.commit()
 
@@ -239,7 +217,11 @@ class Database:
             conn.commit()
 
     # --- Message Logs ---
-    def add_message(self, msg_id: str, conv_id: str, role: str, content: str, timestamp: str, embedding: List[float] = None):
+    def add_message(self, msg_id: str, conv_id: Optional[str], role: str, content: str, timestamp: str, embedding: List[float] = None):
+        if not conv_id:
+            conv_id = "default_session"
+        self.ensure_conversation_exists(conv_id, "Default Session", timestamp)
+        
         with self._get_connection() as conn:
             cursor = conn.cursor()
             emb_str = json.dumps(embedding) if embedding else None
@@ -307,13 +289,13 @@ class Database:
             cursor.execute("DELETE FROM profile_memories WHERE id = ?", (memory_id,))
             conn.commit()
 
-    # --- Skills Library ---
-    def add_skill(self, skill_id: str, name: str, description: str, content: str, created_at: str, embedding: List[float]):
+    # --- Custom Skills ---
+    def add_skill(self, skill_id: str, name: str, description: str, code_snippet: str, created_at: str):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO skills (id, name, description, content, created_at, embedding) VALUES (?, ?, ?, ?, ?, ?)",
-                (skill_id, name, description, content, created_at, json.dumps(embedding))
+                "INSERT INTO skills (id, name, description, code_snippet, created_at) VALUES (?, ?, ?, ?, ?)",
+                (skill_id, name, description, code_snippet, created_at)
             )
             conn.commit()
 
@@ -323,17 +305,27 @@ class Database:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM skills ORDER BY created_at DESC")
             rows = cursor.fetchall()
-            skills = []
-            for row in rows:
-                skills.append({
-                    "id": row["id"],
-                    "name": row["name"],
-                    "description": row["description"],
-                    "content": row["content"],
-                    "created_at": row["created_at"],
-                    "embedding": json.loads(row["embedding"])
-                })
-            return skills
+            return [dict(row) for row in rows]
+
+    def update_skill(self, skill_id: str, name: str = None, description: str = None, code_snippet: str = None):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            updates = []
+            params = []
+            if name is not None:
+                updates.append("name = ?")
+                params.append(name)
+            if description is not None:
+                updates.append("description = ?")
+                params.append(description)
+            if code_snippet is not None:
+                updates.append("code_snippet = ?")
+                params.append(code_snippet)
+            if updates:
+                params.append(skill_id)
+                query = f"UPDATE skills SET {', '.join(updates)} WHERE id = ?"
+                cursor.execute(query, tuple(params))
+                conn.commit()
 
     def delete_skill(self, skill_id: str):
         with self._get_connection() as conn:
@@ -341,87 +333,54 @@ class Database:
             cursor.execute("DELETE FROM skills WHERE id = ?", (skill_id,))
             conn.commit()
 
-    def update_profile_memory(self, memory_id: str, fact: str, embedding: List[float]):
+    # --- Semantic Query Cache ---
+    def get_cached_query(self, query_hash: str) -> Optional[Dict[str, Any]]:
         with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE profile_memories SET fact = ?, embedding = ? WHERE id = ?",
-                (fact, json.dumps(embedding), memory_id)
-            )
-            conn.commit()
-
-    def update_skill(self, skill_id: str, name: str, description: str, content: str, embedding: List[float]):
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE skills SET name = ?, description = ?, content = ?, embedding = ? WHERE id = ?",
-                (name, description, content, json.dumps(embedding), skill_id)
-            )
-            conn.commit()
-
-    def get_from_cache(self, query_embedding: List[float], chat_model: str, threshold: float = 0.95) -> Optional[str]:
-        if not query_embedding:
+            cursor.execute("SELECT * FROM query_cache WHERE query_hash = ?", (query_hash,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row["id"],
+                    "query_text": row["query_text"],
+                    "query_embedding": json.loads(row["query_embedding"]),
+                    "cached_response": row["cached_response"],
+                    "sources": json.loads(row["sources"]) if row["sources"] else [],
+                    "created_at": row["created_at"]
+                }
             return None
-        from typing import Optional
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT query_text, embedding, response_text FROM semantic_cache WHERE chat_model = ?", (chat_model,))
-            rows = cursor.fetchall()
-            
-            import math
-            best_sim = -1.0
-            best_response = None
-            
-            query_len = len(query_embedding)
-            for row in rows:
-                try:
-                    emb = json.loads(row[1])
-                except Exception:
-                    continue
-                if len(emb) != query_len:
-                    continue
-                
-                # Compute Cosine Similarity
-                dot = sum(a * b for a, b in zip(query_embedding, emb))
-                norm_a = math.sqrt(sum(a * a for a in query_embedding))
-                norm_b = math.sqrt(sum(b * b for b in emb))
-                if norm_a == 0 or norm_b == 0:
-                    continue
-                sim = dot / (norm_a * norm_b)
-                
-                if sim >= threshold and sim > best_sim:
-                    best_sim = sim
-                    best_response = row[2]
-            
-            if best_response:
-                print(f"Info: Semantic Cache hit with similarity {best_sim:.4f}")
-            return best_response
 
-    def add_to_cache(self, query_text: str, embedding: List[float], response_text: str, chat_model: str):
-        if not query_text or not embedding or not response_text:
-            return
-        import uuid
-        from datetime import datetime
+    def get_all_cached_queries(self) -> List[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM query_cache ORDER BY created_at DESC")
+            rows = cursor.fetchall()
+            cached = []
+            for row in rows:
+                cached.append({
+                    "id": row["id"],
+                    "query_hash": row["query_hash"],
+                    "query_text": row["query_text"],
+                    "query_embedding": json.loads(row["query_embedding"]),
+                    "cached_response": row["cached_response"],
+                    "sources": json.loads(row["sources"]) if row["sources"] else [],
+                    "created_at": row["created_at"]
+                })
+            return cached
+
+    def add_cached_query(self, cache_id: str, query_hash: str, query_text: str, query_embedding: List[float], cached_response: str, sources: List[Dict[str, Any]], created_at: str):
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            
-            # Enforce FIFO cache limit of 500 records to prevent database bloat
-            cursor.execute("SELECT COUNT(*) FROM semantic_cache")
-            count = cursor.fetchone()[0]
-            if count >= 500:
-                cursor.execute("""
-                    DELETE FROM semantic_cache 
-                    WHERE id IN (
-                        SELECT id FROM semantic_cache 
-                        ORDER BY created_at ASC 
-                        LIMIT ?
-                    )
-                """, (count - 499,))
-                
-            cache_id = str(uuid.uuid4())
-            created_at = datetime.utcnow().isoformat()
             cursor.execute(
-                "INSERT INTO semantic_cache (id, query_text, embedding, response_text, chat_model, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (cache_id, query_text, json.dumps(embedding), response_text, chat_model, created_at)
+                "INSERT OR REPLACE INTO query_cache (id, query_hash, query_text, query_embedding, cached_response, sources, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (cache_id, query_hash, query_text, json.dumps(query_embedding), cached_response, json.dumps(sources) if sources else None, created_at)
             )
+            conn.commit()
+
+    def clear_query_cache(self):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM query_cache")
             conn.commit()

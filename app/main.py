@@ -2,16 +2,41 @@ import os
 import uuid
 import json
 import asyncio
+import httpx
 from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
 from app.database import Database
 from app.filesystem import workspace_manager
+from app.models import (
+    Message,
+    ImageGenRequest,
+    DiagramGenRequest,
+    ChatRequest,
+    ConversationCreate,
+    ProfileMemoryCreate,
+    ProfileMemoryUpdate,
+    SkillCreate,
+    SkillUpdate,
+    WorkspaceConfig,
+    FileWriteRequest,
+    ConsolidateRequest,
+    SandboxRequest,
+    CodeRunRequest,
+    LcsDiffRequest,
+    LcsDiffApplyRequest
+)
+from app.image_engine import (
+    is_image_request,
+    extract_image_prompt,
+    build_image_url,
+    download_and_cache_image
+)
+from app.diagram_engine import generate_diagram_code
 from app.rag_engine import (
     extract_text_from_file, 
     chunk_text, 
@@ -30,11 +55,9 @@ from app.rag_engine import (
 )
 
 def get_error_detail(ex: Exception) -> str:
-    import httpx
     if isinstance(ex, httpx.HTTPStatusError):
         try:
             body = ex.response.read().decode("utf-8", errors="ignore")
-            import json
             try:
                 data = json.loads(body)
                 if "error" in data:
@@ -64,7 +87,6 @@ def get_error_detail(ex: Exception) -> str:
 app = FastAPI(title="Nexus Cognitive Engine")
 db = Database()
 
-# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -76,90 +98,6 @@ app.add_middleware(
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 if not os.path.exists(static_dir):
     os.makedirs(static_dir)
-
-# --- Pydantic Request Models ---
-class Message(BaseModel):
-    role: str
-    content: str
-
-
-class ImageGenRequest(BaseModel):
-    prompt: str
-    width: Optional[int] = 1024
-    height: Optional[int] = 1024
-    seed: Optional[int] = 42
-    model: Optional[str] = "flux"
-
-class DiagramGenRequest(BaseModel):
-    prompt: str
-    diagramType: Optional[str] = "flowchart"
-
-class ChatRequest(BaseModel):
-    messages: List[Message]
-    provider: str
-    conversationId: Optional[str] = None
-    apiKey: Optional[str] = None
-    ollamaUrl: Optional[str] = None
-    genModel: Optional[str] = None
-    embedModel: Optional[str] = None
-    topK: int = 4
-    threshold: float = 0.3
-    systemPrompt: Optional[str] = None
-    webSearch: Optional[bool] = False
-    agentMode: Optional[bool] = False
-    retrievalStrategy: Optional[str] = "hybrid"
-    hyde: Optional[bool] = False
-
-    @property
-    def chatModel(self) -> Optional[str]:
-        return self.genModel
-
-class ConversationCreate(BaseModel):
-    title: str
-
-class ProfileMemoryCreate(BaseModel):
-    fact: str
-    provider: str
-    apiKey: Optional[str] = None
-    ollamaUrl: Optional[str] = None
-    embedModel: Optional[str] = None
-
-class SkillCreate(BaseModel):
-    name: str
-    description: str
-    content: str
-    provider: str
-    apiKey: Optional[str] = None
-    ollamaUrl: Optional[str] = None
-    embedModel: Optional[str] = None
-
-class ProfileMemoryUpdate(BaseModel):
-    fact: str
-    provider: str
-    apiKey: Optional[str] = None
-    ollamaUrl: Optional[str] = None
-    embedModel: Optional[str] = None
-
-class SkillUpdate(BaseModel):
-    name: str
-    description: str
-    content: str
-    provider: str
-    apiKey: Optional[str] = None
-    ollamaUrl: Optional[str] = None
-    embedModel: Optional[str] = None
-
-class WorkspaceConfig(BaseModel):
-    path: str
-    old_path: Optional[str] = None
-    provider: Optional[str] = None
-    apiKey: Optional[str] = None
-    ollamaUrl: Optional[str] = None
-    embedModel: Optional[str] = None
-
-class FileWriteRequest(BaseModel):
-    path: str
-    content: str
 
 # --- Background Extraction Task ---
 async def background_extraction_job(
@@ -311,13 +249,6 @@ async def consolidate_profile_memories(
                 print(f"Failed to consolidate memory group: {e}")
                 
     print(f"Memory consolidation completed. Consolidated {consolidated_count} groups.")
-
-class ConsolidateRequest(BaseModel):
-    provider: str
-    apiKey: Optional[str] = None
-    ollamaUrl: Optional[str] = None
-    embedModel: Optional[str] = None
-    genModel: Optional[str] = None
 
 @app.post("/api/memory/consolidate")
 async def consolidate_memories_endpoint(request: ConsolidateRequest, background_tasks: BackgroundTasks):
@@ -722,10 +653,6 @@ async def save_workspace_file(req: FileWriteRequest):
         return {"status": "success", "message": f"File '{req.path}' saved."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-class SandboxRequest(BaseModel):
-    language: str
-    code: str
 
 @app.post("/api/sandbox/run")
 async def run_sandbox(request: SandboxRequest):
@@ -1405,111 +1332,28 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
 @app.post("/api/image/generate")
 async def generate_ai_image(req: ImageGenRequest):
     """AI Image Generator Suite using Pollinations FLUX API"""
-    import urllib.parse
-    import httpx
-
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt text is required for image generation.")
-
-    prompt_encoded = urllib.parse.quote(req.prompt.strip())
-    image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width={req.width}&height={req.height}&seed={req.seed}&nologo=true"
-
-    output_dir = os.path.join(static_dir, "generated_images")
-    os.makedirs(output_dir, exist_ok=True)
-
-    img_filename = f"gen_{uuid.uuid4().hex[:10]}.jpg"
-    local_img_path = os.path.join(output_dir, img_filename)
-    relative_url = f"/generated_images/{img_filename}"
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(image_url)
-            if resp.status_code == 200:
-                with open(local_img_path, "wb") as f:
-                    f.write(resp.content)
-                return {
-                    "status": "success",
-                    "imageUrl": relative_url,
-                    "externalUrl": image_url,
-                    "prompt": req.prompt,
-                    "filename": img_filename
-                }
-    except Exception as e:
-        print(f"Warning: Failed to cache generated image locally: {e}")
-
-    # Fallback to direct external URL if local caching fails
-    return {
-        "status": "success",
-        "imageUrl": image_url,
-        "externalUrl": image_url,
-        "prompt": req.prompt,
-        "filename": "external"
-    }
+    return await download_and_cache_image(
+        prompt=req.prompt.strip(),
+        static_dir=static_dir,
+        width=req.width or 1024,
+        height=req.height or 1024,
+        seed=req.seed or 42,
+        model=req.model or "flux"
+    )
 
 @app.post("/api/diagram/generate")
 async def generate_mermaid_diagram(req: DiagramGenRequest):
     """Interactive Diagram Generator using Mermaid.js Syntax Engine"""
-    dtype = req.diagramType.lower().strip()
-    prompt = req.prompt.strip()
+    return generate_diagram_code(prompt=req.prompt, diagram_type=req.diagramType or "flowchart")
 
-    if "sequence" in dtype or "sequence" in prompt.lower():
-        code = f"""sequenceDiagram
-    autonumber
-    actor User as User / Client
-    participant API as FastAPI Gateway
-    participant RAG as RAG Pipeline
-    participant DB as SQLite / Vector Cache
 
-    User->>API: POST /chat (Query)
-    API->>RAG: Hybrid Search (HyDE + BM25)
-    RAG->>DB: Cosine Similarity Lookup
-    DB-->>RAG: Document Chunks
-    RAG-->>API: Streamed Tokens (SSE)
-    API-->>User: Render Answer & Citations"""
-    elif "architecture" in dtype or "class" in dtype or "class" in prompt.lower():
-        code = f"""classDiagram
-    class FastAPIApp {{
-        +db: Database
-        +chat_stream()
-        +run_security_audit()
-    }}
-    class RAGEngine {{
-        +chunk_text()
-        +get_embedding()
-        +generate_hyde_text()
-    }}
-    class Database {{
-        +init_db()
-        +add_document()
-        +search_hybrid()
-    }}
-    FastAPIApp --> Database
-    FastAPIApp ..> RAGEngine"""
-    elif "mindmap" in dtype or "mindmap" in prompt.lower():
-        code = f"""mindmap
-  root((RAG Nexus))
-    Core Engine
-      HyDE Expansion
-      BM25 Lexical Search
-      Semantic Cache
-    Generators
-      Diagram Generator
-      AI Image Generator
-    Security
-      OWASP Scanner
-      Sandbox Execution"""
-    else:
-        code = f"""graph TD
-    A[User Request: {prompt[:30]}] --> B[Input Validation]
-    B --> C{{Cache Hit?}}
-    C -- Yes --> D[Return Instant Cache Result]
-    C -- No --> E[RAG Retrieval & Generation]
-    E --> F[Render Answer & Diagrams]"""
-
-    return {
-        "status": "success",
-        "diagramType": dtype,
-        "mermaidCode": code
-    }
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    favicon_path = os.path.join(static_dir, "nexus-logo.png")
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path)
+    raise HTTPException(status_code=404, detail="Favicon not found")
 
 app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
