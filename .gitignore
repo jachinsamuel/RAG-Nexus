@@ -1,46 +1,84 @@
-# Virtual environment
+# ==========================================
+# Git Ignore Configuration for RAG Nexus
+# ==========================================
+
+# Virtual Environments
 venv/
 ENV/
 env/
 .venv/
+env.bak/
+venv.bak/
 
-# Python cache and compiled files
+# Python Bytecode & Compilation Caches
 __pycache__/
 *.py[cod]
 *$py.class
 *.pyd
 *.pyo
-*.pytest_cache/
+*.so
+
+# Testing & Coverage
+.pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
 
-# Database
+# Databases & SQLite Files
 *.db
-*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
+*.sqlite3
+*.sqlite3-journal
 
-# Local environment configuration & secrets
+# Local Environment Variables & Secrets
 .env
 .env.*
+!.env.example
 secrets.json
 *.local
 
-# Static & media generated files
+# Application Logs & Diagnostics
+*.log
+logs/
+*.pid
+*.pid.lock
+
+# Media, Temporary Files & Generated AI Caches
 static/generated_images/
 assets/video_temp/
 assets/*_debug_*.png
 assets/*_inspect_*.png
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
 
-# IDE / Editor configurations
+# IDE & Editor Configurations
 .vscode/
 .idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
-*.swp
+*.sublime-project
+*.sublime-workspace
 
-# OS generated files
+# Operating System Files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-desktop.ini
+[Dd]esktop.ini
+[Nn]etwork [Tt]rash [Ff]older
+[Tt]emporary [Ii]tems

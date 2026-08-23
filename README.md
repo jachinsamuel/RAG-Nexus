@@ -72,23 +72,24 @@
 
 ---
 
-## 🚀 Quick Start & Installation
+## 🚀 Quick Start & Launch Options
 
-Nexus includes automated one-click startup scripts that handle virtual environment setup, package installation, and server launching automatically.
+Nexus provides multiple one-click launch options for Windows:
 
-### Windows (PowerShell)
-Right-click `run.ps1` and select **Run with PowerShell**, or execute:
-```powershell
-./run.ps1
-```
+### 🤫 Silent Launch (Zero Terminal / No Black CMD Window)
+* **Double-click `Nexus_Silent.vbs`** (or `Nexus_Silent.bat`):
+  * Boots FastAPI silently in the background with **0 black console windows**.
+  * Automatically opens your default web browser to `http://127.0.0.1:8000`.
+* **To stop the background server**: Double-click **`Stop_Nexus.bat`**.
 
-### Windows (Command Prompt)
-Double-click `Nexus.bat` to launch immediately.
+---
 
-The startup script will automatically:
-1. Initialize a Python virtual environment (`venv`).
-2. Install all required dependencies from `requirements.txt`.
-3. Launch the FastAPI Uvicorn engine on `http://127.0.0.1:8000`.
+### 🖥️ Standard Console Launch
+* **Windows (PowerShell)**: Right-click `run.ps1` and select **Run with PowerShell**, or execute:
+  ```powershell
+  ./run.ps1
+  ```
+* **Windows (Command Prompt)**: Double-click `Nexus.bat`.
 
 ---
 
