@@ -3260,3 +3260,7 @@ body.theme-light .showcase-btn.save:hover,
     color: #ffffff !important;
     border-color: #059669 !important;
 }
+
+
+/* Hide Telemetry Chip Completely */
+.telemetry-card { display: none !important; }

@@ -3322,8 +3322,8 @@ window.toggleSpeech = function(text, button) {
 
 // TELEMETRY + AGENT FLOW + RAG DIAGNOSTICS utilities
 window.setTelemetryLoading = function() {
-  var c=document.getElementById('telemetry-card'),d=document.getElementById('telemetry-dot'),l=document.getElementById('telemetry-label'),t=document.getElementById('telemetry-latency'),ch=document.getElementById('telemetry-cache');
-  if(!c)return;c.style.display='flex';d.className='telemetry-dot loading';l.textContent='Processing';t.textContent='...';if(ch)ch.style.display='none';
+  // Telemetry chip removed by user request
+  return;
 };
 window.updateAgentFlowNode = function(agentLabel) {
   var strip=document.getElementById('agent-flow-strip');if(!strip)return;strip.style.display='flex';
