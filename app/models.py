@@ -105,3 +105,10 @@ class LcsDiffRequest(BaseModel):
 class LcsDiffApplyRequest(BaseModel):
     filePath: str
     content: str
+
+class UrlIngestRequest(BaseModel):
+    url: str
+    provider: Optional[str] = "gemini"
+    apiKey: Optional[str] = None
+    ollamaUrl: Optional[str] = None
+    embedModel: Optional[str] = None

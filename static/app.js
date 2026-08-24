@@ -720,7 +720,25 @@ function renderDocumentList() {
         
         const name = document.createElement('span');
         name.className = 'doc-name';
-        name.textContent = doc.name;
+        
+        let displayName = doc.name;
+        if (doc.name.startsWith("YouTube: ")) {
+            const badge = document.createElement('span');
+            badge.className = 'doc-badge youtube';
+            badge.textContent = 'YouTube';
+            name.appendChild(badge);
+            displayName = doc.name.replace("YouTube: ", "");
+        } else if (doc.name.startsWith("Web: ")) {
+            const badge = document.createElement('span');
+            badge.className = 'doc-badge web';
+            badge.textContent = 'Web';
+            name.appendChild(badge);
+            displayName = doc.name.replace("Web: ", "");
+        }
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.textContent = displayName;
+        name.appendChild(titleSpan);
         
         const meta = document.createElement('span');
         meta.className = 'doc-meta';
@@ -3668,4 +3686,75 @@ document.addEventListener('DOMContentLoaded', () => {
     initMermaidEngine();
     const chatHist = document.getElementById('chat-history');
     if (chatHist) renderMermaidDiagrams(chatHist);
+});
+
+// --- Direct URL & YouTube Ingestion Handler ---
+async function ingestUrlFromInput() {
+    const urlInput = document.getElementById('url-ingest-input');
+    const ingestBtn = document.getElementById('url-ingest-btn');
+    if (!urlInput) return;
+    
+    const url = urlInput.value.trim();
+    if (!url) {
+        showToast("Please enter a valid web URL or YouTube link.", "warning");
+        return;
+    }
+    
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        showToast("URL must start with http:// or https://", "warning");
+        return;
+    }
+    
+    const origBtnText = ingestBtn.innerHTML;
+    ingestBtn.disabled = true;
+    ingestBtn.innerHTML = `<span class="spinner-small"></span> <span>Ingesting...</span>`;
+    showToast("Fetching and indexing URL into vector database...", "info");
+    
+    try {
+        const payload = {
+            url: url,
+            provider: state.settings.provider,
+            apiKey: state.settings.apiKey || state.settings.openaiKey || state.settings.claudeKey,
+            ollamaUrl: state.settings.ollamaUrl,
+            embedModel: state.settings.embedModel
+        };
+        
+        const resp = await fetch('/api/documents/url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!resp.ok) {
+            const errData = await resp.json();
+            throw new Error(errData.detail || "Failed to ingest URL");
+        }
+        
+        const result = await resp.json();
+        urlInput.value = '';
+        showToast(`Indexed "${result.name}" (${result.chunk_count} chunks)!`, "success");
+        await loadDocuments();
+    } catch (err) {
+        showToast(`Error ingesting URL: ${err.message}`, "error");
+    } finally {
+        ingestBtn.disabled = false;
+        ingestBtn.innerHTML = origBtnText;
+    }
+}
+window.ingestUrlFromInput = ingestUrlFromInput;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const ingestBtn = document.getElementById('url-ingest-btn');
+    const urlInput = document.getElementById('url-ingest-input');
+    if (ingestBtn) {
+        ingestBtn.addEventListener('click', ingestUrlFromInput);
+    }
+    if (urlInput) {
+        urlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                ingestUrlFromInput();
+            }
+        });
+    }
 });

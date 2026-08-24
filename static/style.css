@@ -3264,3 +3264,128 @@ body.theme-light .showcase-btn.save:hover,
 
 /* Hide Telemetry Chip Completely */
 .telemetry-card { display: none !important; }
+
+/* === DIRECT URL & YOUTUBE INGESTOR STYLING === */
+.url-ingest-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.url-ingest-card:focus-within {
+    border-color: var(--cyan-color);
+    box-shadow: 0 4px 16px rgba(0, 243, 255, 0.1);
+}
+
+.url-ingest-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.url-icon {
+    color: var(--cyan-color);
+    flex-shrink: 0;
+}
+
+.url-ingest-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.url-ingest-input {
+    flex: 1;
+    background: var(--bg-input);
+    color: var(--text-input);
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    outline: none;
+    font-family: 'Inter', sans-serif;
+    transition: border-color 0.2s ease;
+}
+
+.url-ingest-input:focus {
+    border-color: var(--cyan-color);
+}
+
+.url-ingest-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 243, 255, 0.12);
+    color: var(--cyan-color);
+    border: 1px solid rgba(0, 243, 255, 0.3);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.url-ingest-btn:hover {
+    background: var(--cyan-color);
+    color: #000000;
+    transform: translateY(-1px);
+}
+
+.url-ingest-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Document List Badges */
+.doc-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.doc-badge.youtube {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.doc-badge.web {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.spinner-small {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0, 243, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--cyan-color);
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

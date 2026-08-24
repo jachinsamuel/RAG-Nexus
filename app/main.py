@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Optional
 from app.database import Database
 from app.filesystem import workspace_manager
 from app.models import (
+    UrlIngestRequest,
     Message,
     ImageGenRequest,
     DiagramGenRequest,
@@ -37,6 +38,7 @@ from app.image_engine import (
     download_and_cache_image
 )
 from app.diagram_engine import generate_diagram_code
+from app.url_ingestor import ingest_url_to_knowledge, is_youtube_url
 from app.rag_engine import (
     extract_text_from_file, 
     chunk_text, 
@@ -357,6 +359,27 @@ async def upload_document(
             "chunks": len(text_chunks)
         }
         
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/documents/url")
+async def ingest_url_endpoint(req: UrlIngestRequest):
+    """Direct Web URL and YouTube video transcript ingestion into vector database"""
+    if not req.url or not req.url.strip():
+        raise HTTPException(status_code=400, detail="Target URL is required.")
+    try:
+        result = await ingest_url_to_knowledge(
+            url=req.url.strip(),
+            db=db,
+            provider=req.provider or "gemini",
+            api_key=req.apiKey,
+            ollama_url=req.ollamaUrl,
+            embed_model=req.embedModel
+        )
+        return result
     except Exception as e:
         import traceback
         traceback.print_exc()
