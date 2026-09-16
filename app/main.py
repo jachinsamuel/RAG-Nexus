@@ -39,6 +39,8 @@ from app.image_engine import (
 )
 from app.diagram_engine import generate_diagram_code
 from app.url_ingestor import ingest_url_to_knowledge, is_youtube_url
+from app.research_engine import run_deep_research_stream
+from app.evaluation_engine import evaluate_rag_faithfulness
 from app.rag_engine import (
     extract_text_from_file, 
     chunk_text, 
@@ -799,6 +801,41 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 yield "event: done\ndata: {}\n\n"
                 
             return StreamingResponse(image_event_generator(), media_type="text/event-stream")
+
+        # --- Deep Research Mode Interceptor ---
+        if request.deepResearch:
+            async def deep_research_wrapper():
+                full_response = ""
+                async for event_str in run_deep_research_stream(
+                    topic=query,
+                    provider=request.provider,
+                    api_key=request.apiKey,
+                    ollama_url=request.ollamaUrl,
+                    gen_model=request.genModel
+                ):
+                    if event_str.startswith("event: text\ndata: "):
+                        try:
+                            payload = json.loads(event_str.replace("event: text\ndata: ", "").strip())
+                            full_response += payload.get("chunk", "")
+                        except Exception:
+                            pass
+                    yield event_str
+                    
+                if conversation_id and full_response.strip():
+                    try:
+                        db.add_message(
+                            conversation_id=conversation_id,
+                            role="assistant",
+                            content=full_response,
+                            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        )
+                    except Exception as dbe:
+                        print(f"Warning: Failed to save deep research response to db: {dbe}")
+                        
+                yield "event: done\ndata: {}\n\n"
+                
+            return StreamingResponse(deep_research_wrapper(), media_type="text/event-stream")
+
         
         # Optimize search query using history (Conversational Query Reformulation)
         search_query = query
@@ -1336,6 +1373,17 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                                 print(f"Warning: Failed to save to semantic cache: {ce}")
                     except Exception as db_ex:
                         print(f"Error: Failed to save assistant message to database: {db_ex}")
+
+                    # Evaluate RAG Faithfulness and Grounding
+                    try:
+                        eval_metrics = evaluate_rag_faithfulness(
+                            query=query,
+                            answer=assistant_reply,
+                            context_chunks=context_chunks
+                        )
+                        yield f"event: rag_eval\ndata: {json.dumps(eval_metrics)}\n\n"
+                    except Exception as ee:
+                        print(f"Evaluation metrics warning: {ee}")
                     
             except Exception as ex:
                 err_msg = get_error_detail(ex)
@@ -1379,4 +1427,108 @@ async def favicon():
         return FileResponse(favicon_path)
     raise HTTPException(status_code=404, detail="Favicon not found")
 
+
+
+
+
+@app.post("/api/data/analyze-csv")
+async def analyze_csv_endpoint(file: UploadFile = File(...)):
+    """Parses an uploaded CSV file, computes summary stats, and generates recommended Chart.js spec."""
+    try:
+        content = await file.read()
+        text_content = content.decode("utf-8", errors="replace")
+        import csv, io
+        reader = csv.reader(io.StringIO(text_content))
+        rows = [row for row in reader if any(cell.strip() for cell in row)]
+        if not rows:
+            raise HTTPException(status_code=400, detail="CSV file is empty.")
+        
+        headers = [h.strip() for h in rows[0]]
+        data_rows = rows[1:]
+        row_count = len(data_rows)
+        col_count = len(headers)
+        
+        col_stats = []
+        label_col_idx = 0
+        numeric_col_indices = []
+        
+        for col_idx, col_name in enumerate(headers):
+            vals = [r[col_idx].strip() for r in data_rows if col_idx < len(r)]
+            num_vals = []
+            for v in vals:
+                clean_v = v.replace(",", "").replace("$", "").replace("%", "")
+                try:
+                    num_vals.append(float(clean_v))
+                except ValueError:
+                    pass
+            is_numeric = len(num_vals) >= len(vals) * 0.7 if vals else False
+            if is_numeric and num_vals:
+                numeric_col_indices.append(col_idx)
+                col_stats.append({
+                    "name": col_name,
+                    "type": "numeric",
+                    "min": min(num_vals),
+                    "max": max(num_vals),
+                    "avg": round(sum(num_vals) / len(num_vals), 2)
+                })
+            else:
+                if not numeric_col_indices:
+                    label_col_idx = col_idx
+                col_stats.append({
+                    "name": col_name,
+                    "type": "text",
+                    "unique_count": len(set(vals))
+                })
+                
+        # Generate recommended Chart.js spec
+        labels = [r[label_col_idx] for r in data_rows[:15] if label_col_idx < len(r)]
+        datasets = []
+        palette = ["#00f3ff", "#10b981", "#8b5cf6", "#f59e0b", "#ec4899"]
+        
+        for i, num_idx in enumerate(numeric_col_indices[:3]):
+            col_name = headers[num_idx]
+            col_data = []
+            for r in data_rows[:15]:
+                if num_idx < len(r):
+                    try:
+                        col_data.append(float(r[num_idx].replace(",", "").replace("$", "").replace("%", "")))
+                    except ValueError:
+                        col_data.append(0)
+                else:
+                    col_data.append(0)
+            datasets.append({
+                "label": col_name,
+                "data": col_data,
+                "backgroundColor": palette[i % len(palette)],
+                "borderColor": palette[i % len(palette)],
+                "borderWidth": 1
+            })
+            
+        chart_type = "bar" if len(labels) <= 15 else "line"
+        chart_spec = {
+            "type": chart_type,
+            "title": f"Dataset Visualization: {file.filename}",
+            "data": {
+                "labels": labels,
+                "datasets": datasets
+            },
+            "options": {
+                "responsive": True,
+                "maintainAspectRatio": False
+            }
+        }
+        
+        return {
+            "filename": file.filename,
+            "row_count": row_count,
+            "col_count": col_count,
+            "columns": col_stats,
+            "chart_spec": chart_spec
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Mount static files to serve the SPA (must be last route)
 app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

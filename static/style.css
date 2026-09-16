@@ -3389,3 +3389,397 @@ body.theme-light .showcase-btn.save:hover,
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+
+/* =========================================================
+   1. DEEP RESEARCH TOGGLE BUTTON & LIVE STEPPER
+   ========================================================= */
+.deep-research-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.deep-research-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.deep-research-btn.active {
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.15);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+}
+
+.research-stepper-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 12px 0 16px 0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.research-stepper-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.research-stepper-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.research-stepper-title svg {
+    color: #a855f7;
+    animation: spin 3s linear infinite;
+}
+
+.research-steps-track {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.research-step-pill {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.3s ease;
+    opacity: 0.5;
+}
+
+.research-step-pill.active {
+    opacity: 1;
+    border-color: #a855f7;
+    background: rgba(168, 85, 247, 0.1);
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.2);
+}
+
+.research-step-pill.completed {
+    opacity: 0.9;
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.research-step-num {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.research-step-pill.active .research-step-num {
+    color: #c084fc;
+}
+
+.research-step-pill.completed .research-step-num {
+    color: #34d399;
+}
+
+.research-step-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.research-sources-box {
+    margin-top: 6px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+}
+
+.research-sources-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.research-sources-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.research-source-tag {
+    font-size: 11px;
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 4px 8px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: border-color 0.2s;
+}
+
+.research-source-tag:hover {
+    border-color: #a855f7;
+    color: #c084fc;
+}
+
+/* =========================================================
+   2. DYNAMIC CHART.JS VISUALIZATION CARDS
+   ========================================================= */
+.nexus-chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin: 16px 0;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+}
+
+.nexus-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.nexus-chart-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nexus-chart-type-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(0, 243, 255, 0.15);
+    color: var(--cyan-color);
+    border: 1px solid rgba(0, 243, 255, 0.3);
+}
+
+.nexus-chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.nexus-chart-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chart-action-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.chart-action-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--cyan-color);
+    background: rgba(0, 243, 255, 0.1);
+}
+
+.nexus-chart-body {
+    position: relative;
+    padding: 16px;
+    min-height: 280px;
+    max-height: 420px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nexus-chart-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 380px;
+}
+
+.nexus-chart-table-view {
+    display: none;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.15);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.nexus-chart-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+}
+
+.nexus-chart-table th, .nexus-chart-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+
+.nexus-chart-table th {
+    color: var(--cyan-color);
+    font-weight: 600;
+}
+
+/* =========================================================
+   3. FAITHFULNESS & HALLUCINATION GUARD BADGES & POPOVER
+   ========================================================= */
+.rag-grounding-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    cursor: pointer;
+    margin: 8px 0 4px 0;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    user-select: none;
+}
+
+.rag-grounding-badge.verified {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.rag-grounding-badge.verified:hover {
+    background: rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+.rag-grounding-badge.partial {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.rag-grounding-badge.partial:hover {
+    background: rgba(245, 158, 11, 0.2);
+}
+
+.rag-grounding-badge.speculative {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.rag-grounding-popover {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    width: 320px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    z-index: 1000;
+    font-size: 11px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rag-grounding-popover.open {
+    display: flex;
+}
+
+.grounding-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.grounding-stat-label {
+    color: var(--text-secondary);
+}
+
+.grounding-stat-value {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.grounding-claims-list {
+    margin-top: 4px;
+    max-height: 140px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.grounding-claim-item {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 6px 8px;
+    border-radius: 6px;
+    border-left: 3px solid #10b981;
+}
+
+.grounding-claim-item.unverified {
+    border-left-color: #ef4444;
+}
+
+.grounding-claim-text {
+    color: var(--text-primary);
+    font-size: 10.5px;
+    line-height: 1.35;
+}
+
+.grounding-claim-src {
+    font-size: 9.5px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}

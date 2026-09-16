@@ -41,6 +41,7 @@ const state = {
     generatingConversations: {},
     activeStreams: {},
     selectedAttachments: [],
+    deepResearch: false,
     promptHistory: [],
     promptHistoryIndex: -1,
     tempTypedPrompt: ''
@@ -1355,8 +1356,50 @@ function parseMarkdown(text) {
         
     // Step B: Fenced code blocks extraction to placeholders
     const codeBlocks = [];
+    const chartBlocks = [];
     html = html.replace(/`{2,}(\w*)[ \r]*\n([\s\S]*?)`{2,}/g, (match, lang, code) => {
         const cleanLang = lang.trim() || 'code';
+
+        // Check for Chart.js blocks
+        if (cleanLang.toLowerCase() === 'chart' || cleanLang.toLowerCase() === 'chartjs') {
+            const chartIdx = chartBlocks.length;
+            const chartId = 'nexus-chart-' + Math.random().toString(36).substring(2, 9);
+            let parsedSpec = null;
+            try {
+                parsedSpec = JSON.parse(code.trim());
+            } catch(e) {
+                parsedSpec = null;
+            }
+            const chartTitle = (parsedSpec && parsedSpec.title) ? parsedSpec.title : 'Data Visualization';
+            const chartType = (parsedSpec && parsedSpec.type) ? parsedSpec.type.toUpperCase() : 'CHART';
+            const rawJsonEscaped = encodeURIComponent(code.trim());
+            
+            chartBlocks.push(`
+            <div class="nexus-chart-card" id="${chartId}-card">
+                <div class="nexus-chart-header">
+                    <div class="nexus-chart-meta">
+                        <span class="nexus-chart-type-badge">${chartType}</span>
+                        <span class="nexus-chart-title">${chartTitle}</span>
+                    </div>
+                    <div class="nexus-chart-actions">
+                        <button class="chart-action-btn" onclick="toggleChartTable(this, '${chartId}')" title="Toggle Raw Data Table">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="12" y1="3" x2="12" y2="21"></line></svg>
+                            <span>Data</span>
+                        </button>
+                        <button class="chart-action-btn" onclick="exportChartPng('${chartId}', '${chartTitle}')" title="Export as High-Res PNG">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>PNG</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="nexus-chart-body">
+                    <canvas id="${chartId}" class="nexus-chart-canvas" data-chart-spec="${rawJsonEscaped}"></canvas>
+                </div>
+                <div class="nexus-chart-table-view" id="${chartId}-table"></div>
+            </div>`);
+            return `\n\n__CHART_BLOCK_${chartIdx}__\n\n`;
+        }
+
         const blockIndex = codeBlocks.length;
         codeBlocks.push(`
         <div class="code-container">
@@ -1452,6 +1495,14 @@ function parseMarkdown(text) {
         const trimmed = p.trim();
         if (!trimmed) return '';
         
+
+        // Restore chart blocks if matched
+        const chartMatch = trimmed.match(/^__CHART_BLOCK_(\d+)__$/);
+        if (chartMatch) {
+            const idx = parseInt(chartMatch[1]);
+            return chartBlocks[idx];
+        }
+
         // Restore code blocks if matched
         const codeMatch = trimmed.match(/^__CODE_BLOCK_(\d+)__$/);
         if (codeMatch) {
@@ -1559,6 +1610,7 @@ function appendMessage(role, content, sources = null) {
     
     renderMath(msgContent);
     renderMermaidDiagrams(bubble);
+    renderChartJsVisualizations(bubble);
     
     if (sources && sources.length > 0) {
         const sourcesContainer = document.createElement('div');
@@ -1806,6 +1858,16 @@ chatForm.addEventListener('submit', async (e) => {
                     } else if (currentEvent === 'warning') {
                         const warn = JSON.parse(dataStr);
                         showToast(warn.message, 'error');
+                    
+                    } else if (currentEvent === 'research_step') {
+                        const rStep = JSON.parse(dataStr);
+                        handleResearchStep(rStep, stream);
+                    } else if (currentEvent === 'research_complete') {
+                        handleResearchComplete(stream);
+                    } else if (currentEvent === 'rag_eval') {
+                        const evalData = JSON.parse(dataStr);
+                        handleRagEval(evalData, stream);
+
                     } else if (currentEvent === 'agent_step') {
                         const step = JSON.parse(dataStr);
                         
@@ -1872,6 +1934,7 @@ chatForm.addEventListener('submit', async (e) => {
                 }
                 renderMath(stream.assistantContentDiv);
                 renderMermaidDiagrams(stream.assistantBubble);
+    renderChartJsVisualizations(stream.assistantBubble);
                 state.messages.push({ role: 'assistant', content: stream.assistantReply });
             }
             
@@ -2477,6 +2540,18 @@ let selectedIndex = -1;
 let filteredItems = [];
 let triggerChar = ''; // '/' or '@'
 let triggerIndex = -1;
+
+
+// Deep Research Mode toggle button
+const deepResearchBtn = document.getElementById('deep-research-btn');
+if (deepResearchBtn) {
+    deepResearchBtn.addEventListener('click', () => {
+        deepResearchBtn.classList.toggle('active');
+        const isActive = deepResearchBtn.classList.contains('active');
+        state.deepResearch = isActive;
+        showToast(isActive ? "Deep Research Mode enabled: Autonomous multi-source web intelligence" : "Deep Research Mode disabled", "info");
+    });
+}
 
 // Bind Agent Mode toggle button inside chat bar
 const agentToggleBtn = document.getElementById('agent-toggle-btn');
@@ -3757,4 +3832,252 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+});
+
+
+// =========================================================
+// CHART.JS ENGINE & UTILITIES
+// =========================================================
+function renderChartJsVisualizations(container) {
+    if (!window.Chart || !container) return;
+    const canvases = container.querySelectorAll('.nexus-chart-canvas');
+    const isLight = document.body.classList.contains('light-theme');
+    
+    canvases.forEach(canvas => {
+        if (canvas.dataset.rendered === 'true') return;
+        const rawJson = canvas.getAttribute('data-chart-spec');
+        if (!rawJson) return;
+        try {
+            const spec = JSON.parse(decodeURIComponent(rawJson));
+            if (!spec || !spec.data) return;
+            
+            Chart.defaults.color = isLight ? '#475569' : '#94a3b8';
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            
+            if (!spec.options) spec.options = {};
+            spec.options.responsive = true;
+            spec.options.maintainAspectRatio = false;
+            
+            if (!spec.options.plugins) spec.options.plugins = {};
+            spec.options.plugins.legend = {
+                display: true,
+                position: 'top',
+                labels: {
+                    boxWidth: 12,
+                    usePointStyle: true,
+                    color: isLight ? '#1e293b' : '#f1f5f9'
+                }
+            };
+            
+            if (spec.type === 'bar' || spec.type === 'line') {
+                if (!spec.options.scales) spec.options.scales = {};
+                spec.options.scales.x = Object.assign({
+                    grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }
+                }, spec.options.scales.x || {});
+                spec.options.scales.y = Object.assign({
+                    grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }
+                }, spec.options.scales.y || {});
+            }
+            
+            const chartInstance = new Chart(canvas, spec);
+            canvas.dataset.rendered = 'true';
+            
+            // Build data table view
+            const tableDiv = document.getElementById(canvas.id + '-table');
+            if (tableDiv && spec.data.labels) {
+                let ths = `<th>Index</th><th>${spec.data.labels[0] ? 'Label' : 'Category'}</th>`;
+                (spec.data.datasets || []).forEach(ds => {
+                    ths += `<th>${ds.label || 'Value'}</th>`;
+                });
+                
+                let trs = '';
+                spec.data.labels.forEach((lbl, rIdx) => {
+                    let tds = `<td>${rIdx + 1}</td><td><strong>${lbl}</strong></td>`;
+                    (spec.data.datasets || []).forEach(ds => {
+                        const val = ds.data && ds.data[rIdx] !== undefined ? ds.data[rIdx] : '-';
+                        tds += `<td>${val}</td>`;
+                    });
+                    trs += `<tr>${tds}</tr>`;
+                });
+                
+                tableDiv.innerHTML = `<table class="nexus-chart-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+            }
+        } catch(err) {
+            console.warn('Failed to render Chart.js chart:', err);
+        }
+    });
+}
+window.renderChartJsVisualizations = renderChartJsVisualizations;
+
+function exportChartPng(canvasId, title) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nexus_chart_${(title || 'export').replace(/[^a-zA-Z0-9_-]/g, '_')}.png`;
+    a.click();
+    showToast("Chart exported as PNG!", "success");
+}
+window.exportChartPng = exportChartPng;
+
+function toggleChartTable(btn, chartId) {
+    const tableDiv = document.getElementById(chartId + '-table');
+    if (!tableDiv) return;
+    const isShown = tableDiv.style.display === 'block';
+    tableDiv.style.display = isShown ? 'none' : 'block';
+    btn.style.color = isShown ? 'var(--text-secondary)' : 'var(--cyan-color)';
+}
+window.toggleChartTable = toggleChartTable;
+
+// =========================================================
+// DEEP RESEARCH STEPPER & RAG EVALUATION HANDLERS
+// =========================================================
+function handleResearchStep(stepData, stream) {
+    if (!stream || !stream.assistantBubble) return;
+    let stepper = stream.assistantBubble.querySelector('.research-stepper-card');
+    if (!stepper) {
+        stepper = document.createElement('div');
+        stepper.className = 'research-stepper-card';
+        stepper.innerHTML = `
+            <div class="research-stepper-header">
+                <div class="research-stepper-title">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span>Autonomous Deep Research Pipeline</span>
+                </div>
+                <span class="research-stepper-status" style="color: #a855f7; font-size: 11px;">Active</span>
+            </div>
+            <div class="research-steps-track">
+                <div class="research-step-pill active" data-stage="planning">
+                    <span class="research-step-num">Step 1</span>
+                    <span class="research-step-label">Deconstruct</span>
+                </div>
+                <div class="research-step-pill" data-stage="searching">
+                    <span class="research-step-num">Step 2</span>
+                    <span class="research-step-label">Multi-Vector</span>
+                </div>
+                <div class="research-step-pill" data-stage="browsing">
+                    <span class="research-step-num">Step 3</span>
+                    <span class="research-step-label">Web Reading</span>
+                </div>
+                <div class="research-step-pill" data-stage="synthesizing">
+                    <span class="research-step-num">Step 4</span>
+                    <span class="research-step-label">Synthesize</span>
+                </div>
+            </div>
+            <div class="research-sources-box" style="display: none;">
+                <div class="research-sources-title">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                    <span>Visited Primary Sources</span>
+                </div>
+                <div class="research-sources-grid"></div>
+            </div>
+        `;
+        stream.assistantBubble.insertBefore(stepper, stream.assistantContentDiv);
+    }
+    
+    const stage = stepData.stage;
+    const stages = ['planning', 'searching', 'browsing', 'synthesizing'];
+    const currentIdx = stages.indexOf(stage);
+    
+    const pills = stepper.querySelectorAll('.research-step-pill');
+    pills.forEach((pill, idx) => {
+        pill.classList.remove('active', 'completed');
+        if (idx < currentIdx) {
+            pill.classList.add('completed');
+        } else if (idx === currentIdx) {
+            pill.classList.add('active');
+        }
+    });
+    
+    if (stepData.sources && Array.isArray(stepData.sources)) {
+        const sourcesBox = stepper.querySelector('.research-sources-box');
+        const grid = stepper.querySelector('.research-sources-grid');
+        if (sourcesBox && grid) {
+            sourcesBox.style.display = 'block';
+            grid.innerHTML = stepData.sources.map(s => {
+                let domain = 'web source';
+                try { domain = (new URL(s.url)).hostname.replace('www.', ''); } catch(e){}
+                return `<a href="${s.url}" target="_blank" rel="noopener noreferrer" class="research-source-tag" title="${s.title}">
+                    <span style="color: #a855f7;">🌐</span>
+                    <span>${domain}</span>
+                </a>`;
+            }).join('');
+        }
+    }
+}
+window.handleResearchStep = handleResearchStep;
+
+function handleResearchComplete(stream) {
+    if (!stream || !stream.assistantBubble) return;
+    const stepper = stream.assistantBubble.querySelector('.research-stepper-card');
+    if (stepper) {
+        const status = stepper.querySelector('.research-stepper-status');
+        if (status) {
+            status.textContent = 'Completed';
+            status.style.color = '#10b981';
+        }
+        stepper.querySelectorAll('.research-step-pill').forEach(p => {
+            p.classList.remove('active');
+            p.classList.add('completed');
+        });
+    }
+}
+window.handleResearchComplete = handleResearchComplete;
+
+function handleRagEval(evalData, stream) {
+    if (!evalData || !evalData.has_rag || !stream || !stream.assistantBubble) return;
+    let badge = stream.assistantBubble.querySelector('.rag-grounding-badge');
+    if (badge) return;
+    
+    badge = document.createElement('div');
+    const isVerified = evalData.grounding_score >= 80;
+    const isPartial = evalData.grounding_score >= 60 && !isVerified;
+    const badgeClass = isVerified ? 'verified' : (isPartial ? 'partial' : 'speculative');
+    const badgeIcon = isVerified ? '🛡️' : (isPartial ? '⚠️' : 'ℹ️');
+    
+    badge.className = `rag-grounding-badge ${badgeClass}`;
+    badge.style.position = 'relative';
+    badge.innerHTML = `
+        <span>${badgeIcon}</span>
+        <span>${evalData.grounding_score}% Grounded</span>
+        <span style="opacity: 0.6; font-size: 10px;">(${evalData.risk_level})</span>
+        <div class="rag-grounding-popover">
+            <div class="grounding-stat-row">
+                <span class="grounding-stat-label">Grounding Confidence:</span>
+                <span class="grounding-stat-value" style="color: ${evalData.status_color};">${evalData.grounding_score}%</span>
+            </div>
+            <div class="grounding-stat-row">
+                <span class="grounding-stat-label">Context Relevance:</span>
+                <span class="grounding-stat-value">${evalData.context_relevance}%</span>
+            </div>
+            <div class="grounding-stat-row">
+                <span class="grounding-stat-label">Verified Assertions:</span>
+                <span class="grounding-stat-value">${evalData.verified_claims} / ${evalData.total_claims}</span>
+            </div>
+            <div style="font-weight: 600; color: var(--text-secondary); margin-top: 4px; font-size: 10px;">Claim Substantiations:</div>
+            <div class="grounding-claims-list">
+                ${(evalData.claims || []).map(c => `
+                    <div class="grounding-claim-item ${c.grounded ? '' : 'unverified'}">
+                        <div class="grounding-claim-text">${c.claim}</div>
+                        <div class="grounding-claim-src">Source: ${c.source} • ${c.confidence}% alignment</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    
+    badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pop = badge.querySelector('.rag-grounding-popover');
+        if (pop) pop.classList.toggle('open');
+    });
+    
+    stream.assistantBubble.appendChild(badge);
+}
+window.handleRagEval = handleRagEval;
+
+// Document click to dismiss grounding popovers
+document.addEventListener('click', () => {
+    document.querySelectorAll('.rag-grounding-popover.open').forEach(p => p.classList.remove('open'));
 });

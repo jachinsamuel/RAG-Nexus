@@ -31,6 +31,7 @@ class ChatRequest(BaseModel):
     agentMode: Optional[bool] = False
     retrievalStrategy: Optional[str] = "hybrid"
     hyde: Optional[bool] = False
+    deepResearch: Optional[bool] = False
 
     @property
     def chatModel(self) -> Optional[str]:
