@@ -39,7 +39,7 @@ body, body.theme-dark, body.dark-theme {
 }
 
 /* --- LIGHT GLASS THEME (CLEAN STUDIO) --- */
-body.theme-light {
+body.theme-light, body.light-theme {
     --bg-main: #f4f7fa;
     --bg-panel: rgba(255, 255, 255, 0.55);
     --bg-card: rgba(255, 255, 255, 0.6);
@@ -3783,3 +3783,211 @@ body.theme-light .showcase-btn.save:hover,
     color: var(--text-secondary);
     margin-top: 2px;
 }
+
+/* =========================================================
+   LIGHT MODE GRAPH & DIAGRAM COMPREHENSIVE FIX
+   Ensures all words, nodes, labels, and ticks are crisp and visible
+   ========================================================= */
+
+/* Mermaid Diagram Light Mode Container */
+body.theme-light .mermaid-wrapper,
+body.light-theme .mermaid-wrapper {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.theme-light .mermaid-header,
+body.light-theme .mermaid-header {
+    background: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+body.theme-light .mermaid-title,
+body.light-theme .mermaid-title {
+    color: #0284c7 !important;
+}
+
+body.theme-light .mermaid-action-btn,
+body.light-theme .mermaid-action-btn {
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+}
+
+body.theme-light .mermaid-action-btn:hover,
+body.light-theme .mermaid-action-btn:hover {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    border-color: #0284c7 !important;
+}
+
+body.theme-light .mermaid-render-pane,
+body.light-theme .mermaid-render-pane {
+    background: #ffffff !important;
+}
+
+/* High-contrast dark typography for all Mermaid SVG text in light mode */
+body.theme-light .mermaid-render-pane svg text,
+body.light-theme .mermaid-render-pane svg text,
+body.theme-light .mermaid-render-pane svg tspan,
+body.light-theme .mermaid-render-pane svg tspan,
+body.theme-light .mermaid-render-pane svg .nodeLabel,
+body.light-theme .mermaid-render-pane svg .nodeLabel,
+body.theme-light .mermaid-render-pane svg .edgeLabel,
+body.light-theme .mermaid-render-pane svg .edgeLabel,
+body.theme-light .mermaid-render-pane svg .label,
+body.light-theme .mermaid-render-pane svg .label,
+body.theme-light .mermaid-render-pane svg .labelText,
+body.light-theme .mermaid-render-pane svg .labelText,
+body.theme-light .mermaid-render-pane svg .cluster-label,
+body.light-theme .mermaid-render-pane svg .cluster-label,
+body.theme-light .mermaid-render-pane svg .actor,
+body.light-theme .mermaid-render-pane svg .actor,
+body.theme-light .mermaid-render-pane svg .messageText,
+body.light-theme .mermaid-render-pane svg .messageText,
+body.theme-light .mermaid-render-pane svg .noteText,
+body.light-theme .mermaid-render-pane svg .noteText,
+body.theme-light .mermaid-render-pane svg text.actor > tspan,
+body.light-theme .mermaid-render-pane svg text.actor > tspan {
+    fill: #0f172a !important;
+    color: #0f172a !important;
+    font-weight: 500 !important;
+}
+
+body.theme-light .mermaid-render-pane svg .edgeLabel p,
+body.light-theme .mermaid-render-pane svg .edgeLabel p,
+body.theme-light .mermaid-render-pane svg .edgeLabel span,
+body.light-theme .mermaid-render-pane svg .edgeLabel span,
+body.theme-light .mermaid-render-pane svg .node p,
+body.light-theme .mermaid-render-pane svg .node p,
+body.theme-light .mermaid-render-pane svg .node span,
+body.light-theme .mermaid-render-pane svg .node span,
+body.theme-light .mermaid-render-pane svg .label div,
+body.light-theme .mermaid-render-pane svg .label div {
+    color: #0f172a !important;
+}
+
+/* Edge label backgrounds (ensure arrow lines don't obscure text) */
+body.theme-light .mermaid-render-pane svg .edgeLabel,
+body.light-theme .mermaid-render-pane svg .edgeLabel,
+body.theme-light .mermaid-render-pane svg .edgeLabel rect,
+body.light-theme .mermaid-render-pane svg .edgeLabel rect,
+body.theme-light .mermaid-render-pane svg .labelBox,
+body.light-theme .mermaid-render-pane svg .labelBox {
+    background-color: #ffffff !important;
+    fill: #ffffff !important;
+}
+
+/* Node shapes & borders in light mode */
+body.theme-light .mermaid-render-pane svg .node rect,
+body.light-theme .mermaid-render-pane svg .node rect,
+body.theme-light .mermaid-render-pane svg .node circle,
+body.light-theme .mermaid-render-pane svg .node circle,
+body.theme-light .mermaid-render-pane svg .node polygon,
+body.light-theme .mermaid-render-pane svg .node polygon,
+body.theme-light .mermaid-render-pane svg .node path,
+body.light-theme .mermaid-render-pane svg .node path {
+    fill: #e0f2fe !important;
+    stroke: #0284c7 !important;
+    stroke-width: 1.5px !important;
+}
+
+/* Sequence diagram actor boxes */
+body.theme-light .mermaid-render-pane svg .actor-box,
+body.light-theme .mermaid-render-pane svg .actor-box,
+body.theme-light .mermaid-render-pane svg rect.actor,
+body.light-theme .mermaid-render-pane svg rect.actor {
+    fill: #e0f2fe !important;
+    stroke: #0284c7 !important;
+}
+
+/* Sequence diagram lines & arrowheads */
+body.theme-light .mermaid-render-pane svg .flowchart-link,
+body.light-theme .mermaid-render-pane svg .flowchart-link,
+body.theme-light .mermaid-render-pane svg path.link,
+body.light-theme .mermaid-render-pane svg path.link,
+body.theme-light .mermaid-render-pane svg .messageLine0,
+body.light-theme .mermaid-render-pane svg .messageLine0,
+body.theme-light .mermaid-render-pane svg .messageLine1,
+body.light-theme .mermaid-render-pane svg .messageLine1 {
+    stroke: #0284c7 !important;
+}
+
+body.theme-light .mermaid-render-pane svg marker path,
+body.light-theme .mermaid-render-pane svg marker path,
+body.theme-light .mermaid-render-pane svg #arrowhead path,
+body.light-theme .mermaid-render-pane svg #arrowhead path {
+    fill: #0284c7 !important;
+    stroke: #0284c7 !important;
+}
+
+/* Chart.js Light Theme Overrides */
+body.theme-light .nexus-chart-card,
+body.light-theme .nexus-chart-card {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.theme-light .nexus-chart-header,
+body.light-theme .nexus-chart-header {
+    background: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+body.theme-light .nexus-chart-title,
+body.light-theme .nexus-chart-title {
+    color: #0f172a !important;
+    font-weight: 600 !important;
+}
+
+body.theme-light .nexus-chart-type-badge,
+body.light-theme .nexus-chart-type-badge {
+    background: rgba(14, 165, 233, 0.1) !important;
+    color: #0284c7 !important;
+    border: 1px solid rgba(14, 165, 233, 0.3) !important;
+}
+
+body.theme-light .chart-action-btn,
+body.light-theme .chart-action-btn {
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+}
+
+body.theme-light .chart-action-btn:hover,
+body.light-theme .chart-action-btn:hover {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    border-color: #0284c7 !important;
+}
+
+body.theme-light .nexus-chart-body,
+body.light-theme .nexus-chart-body {
+    background: #ffffff !important;
+}
+
+body.theme-light .nexus-chart-table-view,
+body.light-theme .nexus-chart-table-view {
+    background: #f8fafc !important;
+    border-top: 1px solid #e2e8f0 !important;
+}
+
+body.theme-light .nexus-chart-table th,
+body.light-theme .nexus-chart-table th {
+    color: #0369a1 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+body.theme-light .nexus-chart-table td,
+body.light-theme .nexus-chart-table td {
+    color: #1e293b !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+body.theme-light .grounding-claim-item,
+body.light-theme .grounding-claim-item {
+    background: #f1f5f9 !important;
+}
+

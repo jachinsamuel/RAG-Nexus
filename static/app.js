@@ -2384,7 +2384,7 @@ window.saveToWorkspaceBlock = async function(button, lang) {
 function applyAppearance(themeName) {
     state.settings.theme = themeName || 'dark';
     
-    document.body.classList.remove('theme-light', 'theme-dark', 'dark-theme');
+    document.body.classList.remove('theme-light', 'light-theme', 'theme-dark', 'dark-theme');
     
     const themeBtn = document.getElementById('theme-toggle-btn');
     const sunIcon = themeBtn ? themeBtn.querySelector('.theme-icon-sun') : null;
@@ -2395,10 +2395,29 @@ function applyAppearance(themeName) {
         if (sunIcon) sunIcon.style.display = 'none';
         if (moonIcon) moonIcon.style.display = 'block';
     } else {
-        document.body.classList.add('theme-light');
+        document.body.classList.add('theme-light', 'light-theme');
         if (sunIcon) sunIcon.style.display = 'block';
         if (moonIcon) moonIcon.style.display = 'none';
     }
+
+    // Adapt active charts and diagrams to the new theme
+    setTimeout(() => {
+        if (window.Chart) {
+            document.querySelectorAll('.nexus-chart-canvas').forEach(canvas => {
+                canvas.dataset.rendered = 'false';
+                const existing = Chart.getChart(canvas);
+                if (existing) existing.destroy();
+            });
+            renderChartJsVisualizations(document);
+        }
+        if (window.mermaid) {
+            initMermaidEngine();
+            document.querySelectorAll('.mermaid-render-pane').forEach(pane => {
+                pane.dataset.rendered = 'false';
+            });
+            renderMermaidDiagrams(document);
+        }
+    }, 50);
 }
 
 function renderAttachmentChips() {
@@ -3477,23 +3496,56 @@ window.buildRagDiagnostics = function(telem, sources) {
 // Initialize Mermaid Engine
 function initMermaidEngine() {
     if (window.mermaid) {
-        const isLight = document.body.classList.contains('light-theme');
+        const isLight = document.body.classList.contains('light-theme') || document.body.classList.contains('theme-light');
         try {
             mermaid.initialize({
                 startOnLoad: false,
                 theme: isLight ? 'default' : 'dark',
                 securityLevel: 'loose',
                 themeVariables: isLight ? {
-                    primaryColor: '#007aff',
-                    primaryTextColor: '#0f172a'
+                    darkMode: false,
+                    background: '#ffffff',
+                    mainBkg: '#ffffff',
+                    primaryColor: '#e0f2fe',
+                    primaryTextColor: '#0f172a',
+                    primaryBorderColor: '#0284c7',
+                    secondaryColor: '#f1f5f9',
+                    secondaryTextColor: '#0f172a',
+                    secondaryBorderColor: '#cbd5e1',
+                    tertiaryColor: '#f8fafc',
+                    tertiaryTextColor: '#0f172a',
+                    tertiaryBorderColor: '#e2e8f0',
+                    nodeBorder: '#0284c7',
+                    nodeTextColor: '#0f172a',
+                    lineColor: '#0284c7',
+                    textColor: '#0f172a',
+                    labelTextColor: '#0f172a',
+                    edgeLabelBackground: '#ffffff',
+                    clusterBkg: '#f8fafc',
+                    clusterBorder: '#cbd5e1',
+                    actorBkg: '#e0f2fe',
+                    actorTextColor: '#0f172a',
+                    actorBorder: '#0284c7',
+                    actorLineColor: '#0284c7',
+                    signalColor: '#0f172a',
+                    signalTextColor: '#0f172a',
+                    labelBoxBkgColor: '#ffffff',
+                    labelBoxBorderColor: '#cbd5e1'
                 } : {
                     darkMode: true,
                     background: '#060812',
+                    mainBkg: '#0b1120',
                     primaryColor: '#00f3ff',
                     primaryTextColor: '#f8fafc',
+                    primaryBorderColor: '#00f3ff',
                     lineColor: '#00f3ff',
-                    mainBkg: '#0b1120',
-                    nodeBorder: '#00f3ff'
+                    nodeBorder: '#00f3ff',
+                    nodeTextColor: '#f8fafc',
+                    textColor: '#f8fafc',
+                    labelTextColor: '#f8fafc',
+                    edgeLabelBackground: '#0b1120',
+                    clusterBkg: '#0b1120',
+                    clusterBorder: '#1e293b'
                 }
             });
         } catch(e) {
@@ -3859,7 +3911,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function renderChartJsVisualizations(container) {
     if (!window.Chart || !container) return;
     const canvases = container.querySelectorAll('.nexus-chart-canvas');
-    const isLight = document.body.classList.contains('light-theme');
+    const isLight = document.body.classList.contains('light-theme') || document.body.classList.contains('theme-light');
     
     canvases.forEach(canvas => {
         if (canvas.dataset.rendered === 'true') return;
@@ -3869,32 +3921,87 @@ function renderChartJsVisualizations(container) {
             const spec = JSON.parse(decodeURIComponent(rawJson));
             if (!spec || !spec.data) return;
             
-            Chart.defaults.color = isLight ? '#475569' : '#94a3b8';
-            Chart.defaults.font.family = "'Inter', sans-serif";
+            const textColor = isLight ? '#0f172a' : '#f8fafc';
+            const textMuted = isLight ? '#334155' : '#94a3b8';
+            const gridColor = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)';
+            const tooltipBg = isLight ? '#ffffff' : '#0f172a';
+            const tooltipBorder = isLight ? '#cbd5e1' : '#334155';
+
+            Chart.defaults.color = textMuted;
+            Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
             
             if (!spec.options) spec.options = {};
             spec.options.responsive = true;
             spec.options.maintainAspectRatio = false;
             
             if (!spec.options.plugins) spec.options.plugins = {};
-            spec.options.plugins.legend = {
+            
+            // Legend styling
+            spec.options.plugins.legend = Object.assign({
                 display: true,
                 position: 'top',
                 labels: {
                     boxWidth: 12,
                     usePointStyle: true,
-                    color: isLight ? '#1e293b' : '#f1f5f9'
+                    color: textColor,
+                    font: { weight: '600', size: 12 }
                 }
-            };
+            }, spec.options.plugins.legend || {});
+            if (spec.options.plugins.legend.labels) {
+                spec.options.plugins.legend.labels.color = textColor;
+            }
+
+            // Title plugin styling
+            if (spec.options.plugins.title) {
+                spec.options.plugins.title.color = textColor;
+                spec.options.plugins.title.font = Object.assign({ weight: '700', size: 13 }, spec.options.plugins.title.font || {});
+            }
+
+            // Tooltip styling
+            spec.options.plugins.tooltip = Object.assign({
+                backgroundColor: tooltipBg,
+                titleColor: textColor,
+                bodyColor: textColor,
+                borderColor: tooltipBorder,
+                borderWidth: 1,
+                padding: 10,
+                boxPadding: 4,
+                usePointStyle: true
+            }, spec.options.plugins.tooltip || {});
+            spec.options.plugins.tooltip.titleColor = textColor;
+            spec.options.plugins.tooltip.bodyColor = textColor;
+            spec.options.plugins.tooltip.backgroundColor = tooltipBg;
+            spec.options.plugins.tooltip.borderColor = tooltipBorder;
             
-            if (spec.type === 'bar' || spec.type === 'line') {
+            // Scales for bar / line / scatter
+            if (spec.type === 'bar' || spec.type === 'line' || spec.type === 'scatter') {
                 if (!spec.options.scales) spec.options.scales = {};
-                spec.options.scales.x = Object.assign({
-                    grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }
-                }, spec.options.scales.x || {});
-                spec.options.scales.y = Object.assign({
-                    grid: { color: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }
-                }, spec.options.scales.y || {});
+                ['x', 'y'].forEach(axis => {
+                    if (!spec.options.scales[axis]) spec.options.scales[axis] = {};
+                    spec.options.scales[axis].grid = Object.assign({
+                        color: gridColor
+                    }, spec.options.scales[axis].grid || {});
+                    spec.options.scales[axis].ticks = Object.assign({
+                        color: textMuted,
+                        font: { weight: '500', size: 11 }
+                    }, spec.options.scales[axis].ticks || {});
+                    spec.options.scales[axis].ticks.color = textMuted;
+                    if (spec.options.scales[axis].title) {
+                        spec.options.scales[axis].title.color = textColor;
+                        spec.options.scales[axis].title.font = Object.assign({ weight: '600', size: 11 }, spec.options.scales[axis].title.font || {});
+                    }
+                });
+            }
+
+            // Radial scales (radar, polarArea)
+            if (spec.options.scales && spec.options.scales.r) {
+                spec.options.scales.r.grid = Object.assign({ color: gridColor }, spec.options.scales.r.grid || {});
+                spec.options.scales.r.angleLines = Object.assign({ color: gridColor }, spec.options.scales.r.angleLines || {});
+                spec.options.scales.r.ticks = Object.assign({ color: textMuted }, spec.options.scales.r.ticks || {});
+                spec.options.scales.r.ticks.color = textMuted;
+                spec.options.scales.r.ticks.backdropColor = isLight ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.75)';
+                spec.options.scales.r.pointLabels = Object.assign({ color: textColor }, spec.options.scales.r.pointLabels || {});
+                spec.options.scales.r.pointLabels.color = textColor;
             }
             
             const chartInstance = new Chart(canvas, spec);
