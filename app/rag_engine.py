@@ -723,7 +723,18 @@ async def generate_response_stream(
                     async with client.stream("POST", url, headers={"Content-Type": "application/json"}, json=payload, timeout=60.0) as response:
                         if response.status_code != 200:
                             err_body = await response.aread()
-                            last_error = RuntimeError(f"HTTP {response.status_code}: {err_body.decode('utf-8', errors='ignore')}")
+                            err_text = err_body.decode("utf-8", errors="ignore")
+                            try:
+                                err_json = json.loads(err_text)
+                                if "error" in err_json:
+                                    err_info = err_json["error"]
+                                    if isinstance(err_info, dict) and "message" in err_info:
+                                        err_text = err_info["message"]
+                                    elif isinstance(err_info, str):
+                                        err_text = err_info
+                            except Exception:
+                                pass
+                            last_error = RuntimeError(f"Gemini HTTP {response.status_code}: {err_text}")
                             continue
                         
                         has_yielded = False
@@ -780,7 +791,20 @@ async def generate_response_stream(
                 json=payload,
                 timeout=60.0
             ) as response:
-                response.raise_for_status()
+                if response.status_code != 200:
+                    err_body = await response.aread()
+                    err_text = err_body.decode("utf-8", errors="ignore")
+                    try:
+                        err_json = json.loads(err_text)
+                        if "error" in err_json:
+                            err_info = err_json["error"]
+                            if isinstance(err_info, dict) and "message" in err_info:
+                                err_text = err_info["message"]
+                            elif isinstance(err_info, str):
+                                err_text = err_info
+                    except Exception:
+                        pass
+                    raise RuntimeError(f"OpenAI HTTP {response.status_code}: {err_text}")
                 async for line in response.aiter_lines():
                     trimmed = line.strip()
                     if not trimmed:
@@ -835,7 +859,20 @@ async def generate_response_stream(
                 json=payload,
                 timeout=60.0
             ) as response:
-                response.raise_for_status()
+                if response.status_code != 200:
+                    err_body = await response.aread()
+                    err_text = err_body.decode("utf-8", errors="ignore")
+                    try:
+                        err_json = json.loads(err_text)
+                        if "error" in err_json:
+                            err_info = err_json["error"]
+                            if isinstance(err_info, dict) and "message" in err_info:
+                                err_text = err_info["message"]
+                            elif isinstance(err_info, str):
+                                err_text = err_info
+                    except Exception:
+                        pass
+                    raise RuntimeError(f"Claude HTTP {response.status_code}: {err_text}")
                 current_event = None
                 async for line in response.aiter_lines():
                     trimmed = line.strip()
@@ -875,7 +912,16 @@ async def generate_response_stream(
                 json=payload,
                 timeout=60.0
             ) as response:
-                response.raise_for_status()
+                if response.status_code != 200:
+                    err_body = await response.aread()
+                    err_text = err_body.decode("utf-8", errors="ignore")
+                    try:
+                        err_json = json.loads(err_text)
+                        if "error" in err_json:
+                            err_text = str(err_json["error"])
+                    except Exception:
+                        pass
+                    raise RuntimeError(f"Ollama HTTP {response.status_code}: {err_text}")
                 async for line in response.aiter_lines():
                     if line.strip():
                         data = json.loads(line)
@@ -912,7 +958,24 @@ async def generate_response_stream(
                 json=payload,
                 timeout=60.0
             ) as response:
-                response.raise_for_status()
+                if response.status_code != 200:
+                    err_body = await response.aread()
+                    err_text = err_body.decode("utf-8", errors="ignore")
+                    try:
+                        err_json = json.loads(err_text)
+                        if "error" in err_json:
+                            err_info = err_json["error"]
+                            if isinstance(err_info, dict) and "message" in err_info:
+                                err_text = err_info["message"]
+                            elif isinstance(err_info, str):
+                                err_text = err_info
+                    except Exception:
+                        pass
+                    if response.status_code == 410:
+                        err_text = f"Model '{model_name}' or endpoint returned 410 Gone (decommissioned/unavailable). {err_text}".strip()
+                    elif response.status_code == 404:
+                        err_text = f"Model '{model_name}' or endpoint not found (404 Not Found). {err_text}".strip()
+                    raise RuntimeError(f"Custom Provider HTTP {response.status_code}: {err_text}")
                 async for line in response.aiter_lines():
                     trimmed = line.strip()
                     if not trimmed:

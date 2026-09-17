@@ -363,6 +363,10 @@ function initSettings() {
             radio.checked = true;
         }
     });
+    const chatModelSelectElem = document.getElementById('chat-model-select');
+    if (chatModelSelectElem && state.settings.provider) {
+        chatModelSelectElem.value = state.settings.provider;
+    }
     
     const optionsBlocks = {
         gemini: geminiOptions,
@@ -1360,19 +1364,27 @@ function parseMarkdown(text) {
     html = html.replace(/`{2,}(\w*)[ \r]*\n([\s\S]*?)`{2,}/g, (match, lang, code) => {
         const cleanLang = lang.trim() || 'code';
 
+        const unescapedCode = code
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"');
+        let parsedSpec = null;
+        try {
+            parsedSpec = JSON.parse(unescapedCode.trim());
+        } catch(e) {
+            parsedSpec = null;
+        }
+
+        const isChartJson = !!(parsedSpec && parsedSpec.type && parsedSpec.data && parsedSpec.data.datasets && ['bar', 'line', 'pie', 'doughnut', 'radar', 'polararea'].includes(String(parsedSpec.type).toLowerCase()));
+
         // Check for Chart.js blocks
-        if (cleanLang.toLowerCase() === 'chart' || cleanLang.toLowerCase() === 'chartjs') {
+        if (cleanLang.toLowerCase() === 'chart' || cleanLang.toLowerCase() === 'chartjs' || isChartJson) {
             const chartIdx = chartBlocks.length;
             const chartId = 'nexus-chart-' + Math.random().toString(36).substring(2, 9);
-            let parsedSpec = null;
-            try {
-                parsedSpec = JSON.parse(code.trim());
-            } catch(e) {
-                parsedSpec = null;
-            }
             const chartTitle = (parsedSpec && parsedSpec.title) ? parsedSpec.title : 'Data Visualization';
             const chartType = (parsedSpec && parsedSpec.type) ? parsedSpec.type.toUpperCase() : 'CHART';
-            const rawJsonEscaped = encodeURIComponent(code.trim());
+            const rawJsonEscaped = encodeURIComponent(unescapedCode.trim());
             
             chartBlocks.push(`
             <div class="nexus-chart-card" id="${chartId}-card">
@@ -1492,36 +1504,32 @@ function parseMarkdown(text) {
     // Step E: Split by double newlines into clean blocks
     const paragraphs = html.split(/\n\s*\n/);
     const renderedParagraphs = paragraphs.map(p => {
-        const trimmed = p.trim();
+        let trimmed = p.trim();
         if (!trimmed) return '';
         
-
-        // Restore chart blocks if matched
-        const chartMatch = trimmed.match(/^__CHART_BLOCK_(\d+)__$/);
-        if (chartMatch) {
-            const idx = parseInt(chartMatch[1]);
-            return chartBlocks[idx];
+        // Restore chart blocks if present
+        if (trimmed.includes('__CHART_BLOCK_')) {
+            trimmed = trimmed.replace(/__CHART_BLOCK_(\d+)__/g, (_, idx) => chartBlocks[parseInt(idx)] || '');
         }
 
-        // Restore code blocks if matched
-        const codeMatch = trimmed.match(/^__CODE_BLOCK_(\d+)__$/);
-        if (codeMatch) {
-            const idx = parseInt(codeMatch[1]);
-            return codeBlocks[idx];
+        // Restore code blocks if present
+        if (trimmed.includes('__CODE_BLOCK_')) {
+            trimmed = trimmed.replace(/__CODE_BLOCK_(\d+)__/g, (_, idx) => codeBlocks[parseInt(idx)] || '');
         }
         
-        // Restore table blocks if matched
-        const tableMatch = trimmed.match(/^__TABLE_BLOCK_(\d+)__$/);
-        if (tableMatch) {
-            const idx = parseInt(tableMatch[1]);
-            return tables[idx];
+        // Restore table blocks if present
+        if (trimmed.includes('__TABLE_BLOCK_')) {
+            trimmed = trimmed.replace(/__TABLE_BLOCK_(\d+)__/g, (_, idx) => tables[parseInt(idx)] || '');
         }
 
-        // Restore image blocks if matched
-        const imageMatch = trimmed.match(/^__IMAGE_BLOCK_(\d+)__$/);
-        if (imageMatch) {
-            const idx = parseInt(imageMatch[1]);
-            return images[idx];
+        // Restore image blocks if present
+        if (trimmed.includes('__IMAGE_BLOCK_')) {
+            trimmed = trimmed.replace(/__IMAGE_BLOCK_(\d+)__/g, (_, idx) => images[parseInt(idx)] || '');
+        }
+
+        // If block is already a card/container div, return as-is
+        if (trimmed.startsWith('<div class="nexus-chart-card"') || trimmed.startsWith('<div class="code-container"') || trimmed.startsWith('<div class="nexus-table-card"') || trimmed.startsWith('<div class="image-showcase-card"')) {
+            return trimmed;
         }
 
         // Render Headings
@@ -1684,8 +1692,11 @@ chatForm.addEventListener('submit', async (e) => {
     const qLower = query.toLowerCase().trim();
     const isImageQuery = ["generate an image", "generate image", "create an image", "create image", "draw an image", "draw a picture", "draw image", "make an image"].some(t => qLower.includes(t));
 
-    // Check Settings configurations: If provider is selected and API key/URL is missing, alert the user!
-    const activeProvider = state.settings.provider;
+    // Synchronize active provider with inline model selector if present
+    const inlineModelSelect = document.getElementById('chat-model-select');
+    const activeProvider = (inlineModelSelect && inlineModelSelect.value) ? inlineModelSelect.value : (state.settings.provider || 'gemini');
+    state.settings.provider = activeProvider;
+
     if (!isImageQuery && activeProvider === 'gemini' && !state.settings.apiKey.trim()) {
         showToast("Gemini API key is required. Please set it in configurations.", "error");
         openDrawer(settingsDrawer);
@@ -1701,10 +1712,17 @@ chatForm.addEventListener('submit', async (e) => {
         openDrawer(settingsDrawer);
         return;
     }
-    if (activeProvider === 'custom' && !state.settings.customUrl.trim()) {
-        showToast("Custom Base URL is required. Please set it in configurations.", "error");
-        openDrawer(settingsDrawer);
-        return;
+    if (activeProvider === 'custom') {
+        if (!state.settings.customUrl.trim()) {
+            showToast("Custom Base URL is required. Please set it in configurations.", "error");
+            openDrawer(settingsDrawer);
+            return;
+        }
+        if (!state.settings.customModel || !state.settings.customModel.trim()) {
+            showToast("Custom Generative Model name is required. Please set it in configurations.", "error");
+            openDrawer(settingsDrawer);
+            return;
+        }
     }
     
     let queryToSubmit = query;

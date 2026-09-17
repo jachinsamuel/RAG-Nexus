@@ -60,8 +60,19 @@ from app.rag_engine import (
 
 def get_error_detail(ex: Exception) -> str:
     if isinstance(ex, httpx.HTTPStatusError):
+        body = ""
         try:
-            body = ex.response.read().decode("utf-8", errors="ignore")
+            if hasattr(ex.response, "_content") and ex.response._content:
+                body = ex.response._content.decode("utf-8", errors="ignore")
+            elif not ex.response.is_closed:
+                try:
+                    body = ex.response.read().decode("utf-8", errors="ignore")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+            
+        if body:
             try:
                 data = json.loads(body)
                 if "error" in data:
@@ -74,8 +85,15 @@ def get_error_detail(ex: Exception) -> str:
                 pass
             if body.strip():
                 return f"HTTP {ex.response.status_code}: {body.strip()}"
-        except Exception:
-            pass
+
+        if ex.response.status_code == 410:
+            return "HTTP 410 (Gone): The requested model or API endpoint is no longer available or has been decommissioned by the provider. Please update your model in Settings or switch provider."
+        elif ex.response.status_code == 404:
+            return "HTTP 404 (Not Found): The model or endpoint URL was not found. Please verify your Base URL and model name in Settings."
+        elif ex.response.status_code == 401:
+            return "HTTP 401 (Unauthorized): Invalid or missing API key. Please check your API key in Settings."
+        elif ex.response.status_code == 429:
+            return "HTTP 429 (Rate Limited): Provider rate limit exceeded or quota exhausted. Please try again in a few moments."
         return f"HTTP Status {ex.response.status_code}"
     elif isinstance(ex, httpx.RequestError):
         detail = str(ex)
