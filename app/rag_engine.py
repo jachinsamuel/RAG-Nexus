@@ -102,6 +102,14 @@ def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
     return chunks
 
 
+def sanitize_ollama_url(url: Optional[str] = None) -> str:
+    """Sanitizes Ollama base URL by removing trailing slashes and /v1 suffix."""
+    clean = (url or "http://localhost:11434").strip().rstrip('/')
+    if clean.endswith('/v1'):
+        clean = clean[:-3].rstrip('/')
+    return clean or "http://localhost:11434"
+
+
 async def get_embedding(
     text: str, 
     provider: str, 
@@ -158,11 +166,11 @@ async def get_embedding(
             return data["data"][0]["embedding"]
 
     elif provider == "ollama":
-        url = ollama_url or "http://localhost:11434"
+        url = sanitize_ollama_url(ollama_url)
         model_name = model or "nomic-embed-text"
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{url.rstrip('/')}/api/embeddings",
+                f"{url}/api/embeddings",
                 json={"model": model_name, "prompt": text},
                 timeout=30.0
             )
@@ -267,13 +275,13 @@ async def get_embeddings_batch(
             return [x["embedding"] for x in sorted_data]
 
     elif provider == "ollama":
-        url = ollama_url or "http://localhost:11434"
+        url = sanitize_ollama_url(ollama_url)
         model_name = model or "nomic-embed-text"
         
         async def embed_single(text: str) -> List[float]:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{url.rstrip('/')}/api/embeddings",
+                    f"{url}/api/embeddings",
                     json={"model": model_name, "prompt": text},
                     timeout=30.0
                 )
@@ -892,7 +900,7 @@ async def generate_response_stream(
                             print(f"Error parsing Claude stream chunk: {e}")
 
     elif provider == "ollama":
-        url = ollama_url or "http://localhost:11434"
+        url = sanitize_ollama_url(ollama_url)
         model_name = model or "llama3"
         
         ollama_messages = [{"role": "system", "content": full_system_prompt}]
@@ -905,12 +913,12 @@ async def generate_response_stream(
             "stream": True
         }
         
-        async with httpx.AsyncClient() as client:
+        timeout_cfg = httpx.Timeout(180.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout_cfg) as client:
             async with client.stream(
                 "POST", 
-                f"{url.rstrip('/')}/api/chat", 
-                json=payload,
-                timeout=60.0
+                f"{url}/api/chat", 
+                json=payload
             ) as response:
                 if response.status_code != 200:
                     err_body = await response.aread()
@@ -923,11 +931,25 @@ async def generate_response_stream(
                         pass
                     raise RuntimeError(f"Ollama HTTP {response.status_code}: {err_text}")
                 async for line in response.aiter_lines():
-                    if line.strip():
-                        data = json.loads(line)
-                        content = data.get("message", {}).get("content", "")
-                        if content:
-                            yield content
+                    trimmed = line.strip()
+                    if not trimmed:
+                        continue
+                    if trimmed.startswith("data: "):
+                        trimmed = trimmed[6:].strip()
+                    if trimmed == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(trimmed)
+                    except Exception:
+                        continue
+                    content = (
+                        data.get("message", {}).get("content") or
+                        data.get("response") or
+                        (data.get("choices", [{}])[0].get("delta", {}).get("content") if data.get("choices") else None) or
+                        ""
+                    )
+                    if content:
+                        yield content
 
     elif provider == "custom":
         if not ollama_url:
@@ -1145,12 +1167,12 @@ async def extract_memory_and_skills_from_dialogue(
                 response_text = data.get("content", [{}])[0].get("text", "")
 
         elif provider == "ollama":
-            url = ollama_url or "http://localhost:11434"
+            url = sanitize_ollama_url(ollama_url)
             model_name = model or "llama3"
             
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{url.rstrip('/')}/api/chat",
+                    f"{url}/api/chat",
                     json={
                         "model": model_name,
                         "messages": [{"role": "user", "content": extraction_prompt}],
@@ -1354,11 +1376,11 @@ async def get_completion(
                 return data.get("content", [{}])[0].get("text", "").strip()
 
         elif provider == "ollama":
-            url = ollama_url or "http://localhost:11434"
+            url = sanitize_ollama_url(ollama_url)
             model_name = model or "llama3"
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{url.rstrip('/')}/api/chat",
+                    f"{url}/api/chat",
                     json={
                         "model": model_name,
                         "messages": [{"role": "user", "content": prompt}],

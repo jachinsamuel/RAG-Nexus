@@ -436,6 +436,10 @@ function initSettings() {
         configureBackendWorkspace(state.settings.workspacePath);
     }
     
+    if (state.settings.provider === 'ollama') {
+        discoverOllamaModels(true);
+    }
+    
     updateHeaderDisplay();
     validateInputs();
 }
@@ -549,39 +553,74 @@ window.addEventListener('click', (e) => {
     }
 });
 
+// Auto-discover and populate local Ollama models
+async function discoverOllamaModels(silent = false) {
+    const urlInput = document.getElementById('ollama-url');
+    const url = urlInput ? (urlInput.value.trim() || 'http://localhost:11434') : 'http://localhost:11434';
+    try {
+        const resp = await fetch(`/api/ollama/discover?url=${encodeURIComponent(url)}`);
+        const data = await resp.json();
+        if (data.status === 'success' && Array.isArray(data.models) && data.models.length > 0) {
+            const genDatalist = document.getElementById('ollama-generative-datalist');
+            const embedDatalist = document.getElementById('ollama-embed-datalist');
+            
+            if (genDatalist) genDatalist.innerHTML = '';
+            if (embedDatalist) embedDatalist.innerHTML = '';
+            
+            data.models.forEach(model => {
+                if (genDatalist) {
+                    const opt1 = document.createElement('option');
+                    opt1.value = model;
+                    genDatalist.appendChild(opt1);
+                }
+                if (embedDatalist) {
+                    const opt2 = document.createElement('option');
+                    opt2.value = model;
+                    embedDatalist.appendChild(opt2);
+                }
+            });
+
+            // Separate generative and embedding models
+            const genModels = data.models.filter(m => !m.toLowerCase().includes('embed'));
+            const embedModels = data.models.filter(m => m.toLowerCase().includes('embed'));
+
+            // Auto-select valid model if current selection is invalid or stale default
+            const currentGen = (state.settings.ollamaModel || '').trim();
+            const isGenInstalled = data.models.some(m => m === currentGen || m.startsWith(currentGen + ':'));
+            if ((!isGenInstalled || currentGen === 'llama3' || !currentGen) && genModels.length > 0) {
+                state.settings.ollamaModel = genModels[0];
+                if (ollamaModelInput) ollamaModelInput.value = genModels[0];
+            }
+            const currentEmbed = (state.settings.ollamaEmbed || '').trim();
+            const isEmbedInstalled = data.models.some(m => m === currentEmbed || m.startsWith(currentEmbed + ':'));
+            if ((!isEmbedInstalled || !currentEmbed) && embedModels.length > 0) {
+                state.settings.ollamaEmbed = embedModels[0];
+                if (ollamaEmbedInput) ollamaEmbedInput.value = embedModels[0];
+            }
+
+            if (!silent) {
+                showToast(`Found ${data.models.length} local Ollama model(s): ${data.models.join(', ')}`, 'success');
+            }
+            return data.models;
+        } else if (!silent) {
+            showToast(`Scan failed: ${data.message || 'No models found'}`, 'error');
+        }
+    } catch (err) {
+        if (!silent) {
+            showToast(`Error scanning models: ${err.message}`, 'error');
+        }
+    }
+    return [];
+}
+
 // Scan local Ollama models
 const scanOllamaBtn = document.getElementById('scan-ollama-btn');
 if (scanOllamaBtn) {
     scanOllamaBtn.addEventListener('click', async () => {
-        const urlInput = document.getElementById('ollama-url');
-        const url = urlInput ? urlInput.value.trim() : 'http://localhost:11434';
         scanOllamaBtn.disabled = true;
         scanOllamaBtn.textContent = 'Scanning...';
         try {
-            const resp = await fetch(`/api/ollama/discover?url=${encodeURIComponent(url)}`);
-            const data = await resp.json();
-            if (data.status === 'success') {
-                const genDatalist = document.getElementById('ollama-generative-datalist');
-                const embedDatalist = document.getElementById('ollama-embed-datalist');
-                
-                genDatalist.innerHTML = '';
-                embedDatalist.innerHTML = '';
-                
-                data.models.forEach(model => {
-                    const opt1 = document.createElement('option');
-                    opt1.value = model;
-                    genDatalist.appendChild(opt1);
-                    
-                    const opt2 = document.createElement('option');
-                    opt2.value = model;
-                    embedDatalist.appendChild(opt2);
-                });
-                showToast(`Scanned ${data.models.length} local Ollama models successfully!`, 'success');
-            } else {
-                showToast(`Scan failed: ${data.message}`, 'error');
-            }
-        } catch (err) {
-            showToast(`Error scanning models: ${err.message}`, 'error');
+            await discoverOllamaModels(false);
         } finally {
             scanOllamaBtn.disabled = false;
             scanOllamaBtn.textContent = 'Scan';
@@ -625,6 +664,9 @@ document.querySelectorAll('input[name="provider"]').forEach(radio => {
                 optionsBlocks[key].style.display = (val === key) ? 'block' : 'none';
             }
         });
+        if (val === 'ollama') {
+            discoverOllamaModels(true);
+        }
     });
 });
 
@@ -1361,6 +1403,7 @@ function parseMarkdown(text) {
     // Step B: Fenced code blocks extraction to placeholders
     const codeBlocks = [];
     const chartBlocks = [];
+    const mermaidBlocks = [];
     html = html.replace(/`{2,}(\w*)[ \r]*\n([\s\S]*?)`{2,}/g, (match, lang, code) => {
         const cleanLang = lang.trim() || 'code';
 
@@ -1369,9 +1412,64 @@ function parseMarkdown(text) {
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .replace(/&quot;/g, '"');
+        const trimmedCode = unescapedCode.trim();
+
+        // Check for Mermaid diagram blocks
+        const lowerLang = cleanLang.toLowerCase();
+        const isMermaidKeyword = /^(graph\s+(TD|TB|BT|RL|LR)|flowchart\s+(TD|TB|BT|RL|LR)|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|mindmap|gantt|pie(\s+title)?|gitGraph|quadrantChart|c4Context|requirementDiagram)/i.test(trimmedCode);
+        const isMermaid = lowerLang === 'mermaid' || lowerLang === 'mermaidjs' || ((lowerLang === 'graph' || lowerLang === 'flowchart') && isMermaidKeyword) || isMermaidKeyword;
+
+        if (isMermaid) {
+            const mermaidIdx = mermaidBlocks.length;
+            const diagramId = 'nexus-diagram-' + Math.random().toString(36).substring(2, 9);
+            
+            let diagramTitle = 'Architecture Diagram';
+            if (/^sequenceDiagram/i.test(trimmedCode)) diagramTitle = 'Sequence Diagram';
+            else if (/^classDiagram/i.test(trimmedCode)) diagramTitle = 'Class Diagram';
+            else if (/^stateDiagram/i.test(trimmedCode)) diagramTitle = 'State Diagram';
+            else if (/^erDiagram/i.test(trimmedCode)) diagramTitle = 'Entity Relationship Diagram';
+            else if (/^mindmap/i.test(trimmedCode)) diagramTitle = 'Mindmap Diagram';
+            else if (/^gantt/i.test(trimmedCode)) diagramTitle = 'Gantt Project Timeline';
+            else if (/^pie/i.test(trimmedCode)) diagramTitle = 'Pie Chart Diagram';
+            else if (/^gitGraph/i.test(trimmedCode)) diagramTitle = 'Git Branch Flow';
+            else if (/^(graph|flowchart)/i.test(trimmedCode)) diagramTitle = 'Process & Flowchart Diagram';
+
+            const rawCodeEscaped = encodeURIComponent(trimmedCode);
+
+            mermaidBlocks.push(`
+            <div class="mermaid-wrapper" id="${diagramId}-card">
+                <div class="mermaid-header">
+                    <div class="mermaid-title">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                        <span>${diagramTitle}</span>
+                    </div>
+                    <div class="mermaid-actions">
+                        <button class="mermaid-action-btn" onclick="copyMermaidCode('${diagramId}')" title="Copy Mermaid Code">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span>Copy</span>
+                        </button>
+                        <button class="mermaid-action-btn" onclick="exportMermaidSvg('${diagramId}')" title="Export as Vector SVG">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>SVG</span>
+                        </button>
+                        <button class="mermaid-action-btn" onclick="exportMermaidPng('${diagramId}')" title="Export as High-Res PNG">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>PNG</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="mermaid-render-pane" id="${diagramId}" data-code="${rawCodeEscaped}">
+                    <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:24px;color:var(--text-secondary);font-size:12px;">
+                        <span>Rendering diagram...</span>
+                    </div>
+                </div>
+            </div>`);
+            return `\n\n__MERMAID_BLOCK_${mermaidIdx}__\n\n`;
+        }
+
         let parsedSpec = null;
         try {
-            parsedSpec = JSON.parse(unescapedCode.trim());
+            parsedSpec = JSON.parse(trimmedCode);
         } catch(e) {
             parsedSpec = null;
         }
@@ -1507,6 +1605,11 @@ function parseMarkdown(text) {
         let trimmed = p.trim();
         if (!trimmed) return '';
         
+        // Restore Mermaid blocks if present
+        if (trimmed.includes('__MERMAID_BLOCK_')) {
+            trimmed = trimmed.replace(/__MERMAID_BLOCK_(\d+)__/g, (_, idx) => mermaidBlocks[parseInt(idx)] || '');
+        }
+
         // Restore chart blocks if present
         if (trimmed.includes('__CHART_BLOCK_')) {
             trimmed = trimmed.replace(/__CHART_BLOCK_(\d+)__/g, (_, idx) => chartBlocks[parseInt(idx)] || '');
@@ -1528,7 +1631,7 @@ function parseMarkdown(text) {
         }
 
         // If block is already a card/container div, return as-is
-        if (trimmed.startsWith('<div class="nexus-chart-card"') || trimmed.startsWith('<div class="code-container"') || trimmed.startsWith('<div class="nexus-table-card"') || trimmed.startsWith('<div class="image-showcase-card"')) {
+        if (trimmed.startsWith('<div class="mermaid-wrapper"') || trimmed.startsWith('<div class="nexus-chart-card"') || trimmed.startsWith('<div class="code-container"') || trimmed.startsWith('<div class="nexus-table-card"') || trimmed.startsWith('<div class="image-showcase-card"')) {
             return trimmed;
         }
 
@@ -3572,7 +3675,23 @@ async function renderMermaidDiagrams(container) {
             pane.dataset.rendered = 'true';
         } catch (err) {
             console.warn('Mermaid render error:', err);
-            pane.innerHTML = `<div style="font-size:11px;color:#f43f5e;padding:8px;">Diagram Syntax Error: ${err.message || err}</div>`;
+            // Clean up stray Mermaid error SVGs added to document body by mermaid.js
+            try {
+                const strayErrors = document.querySelectorAll('svg[id^="dsvg-"]');
+                strayErrors.forEach(s => s.remove());
+            } catch(e) {}
+            
+            const escapedCode = rawCode.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            pane.innerHTML = `
+                <div style="font-size: 11.5px; color: var(--red-alert, #f43f5e); padding: 12px; background: rgba(244, 63, 94, 0.07); border-radius: 8px; text-align: left; width: 100%;">
+                    <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <span>Diagram Notice: Syntax parsing issue</span>
+                    </div>
+                    <div style="font-size: 11px; opacity: 0.85; margin-bottom: 8px;">${err.message || 'Could not parse diagram structure.'}</div>
+                    <pre style="margin: 0; font-size: 10.5px; color: var(--text-secondary); background: rgba(0, 0, 0, 0.35); padding: 8px 10px; border-radius: 6px; overflow-x: auto; font-family: monospace;"><code>${escapedCode}</code></pre>
+                </div>`;
+            pane.dataset.rendered = 'true';
         }
     }
 }

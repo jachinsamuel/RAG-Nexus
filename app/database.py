@@ -384,3 +384,50 @@ class Database:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM query_cache")
             conn.commit()
+
+    def get_from_cache(self, query_embedding: List[float], chat_model: Optional[str] = None, threshold: float = 0.96) -> Optional[str]:
+        """Looks up cached response by cosine similarity on query_embedding."""
+        if not query_embedding:
+            return None
+        import numpy as np
+        def cosine_sim(a, b):
+            dot = np.dot(a, b)
+            norm_a = np.linalg.norm(a)
+            norm_b = np.linalg.norm(b)
+            if norm_a == 0 or norm_b == 0:
+                return 0.0
+            return float(dot / (norm_a * norm_b))
+            
+        cached_items = self.get_all_cached_queries()
+        best_sim = 0.0
+        best_match = None
+        for item in cached_items:
+            emb = item.get("query_embedding")
+            if not emb or len(emb) != len(query_embedding):
+                continue
+            sim = cosine_sim(query_embedding, emb)
+            if sim > best_sim:
+                best_sim = sim
+                best_match = item
+        if best_match and best_sim >= threshold:
+            return best_match["cached_response"]
+        return None
+
+    def add_to_cache(self, query_text: str, embedding: List[float], response_text: str, chat_model: Optional[str] = None):
+        """Adds a query and response to semantic cache."""
+        if not query_text or not embedding or not response_text:
+            return
+        import hashlib, uuid
+        from datetime import datetime
+        query_hash = hashlib.sha256(query_text.strip().lower().encode('utf-8')).hexdigest()
+        cache_id = str(uuid.uuid4())
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.add_cached_query(
+            cache_id=cache_id,
+            query_hash=query_hash,
+            query_text=query_text,
+            query_embedding=embedding,
+            cached_response=response_text,
+            sources=[],
+            created_at=created_at
+        )

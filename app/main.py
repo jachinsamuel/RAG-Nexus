@@ -55,7 +55,8 @@ from app.rag_engine import (
     rewrite_query_for_retrieval,
     rerank_chunks_lexical,
     generate_hyde_text,
-    enrich_chunks_with_siblings
+    enrich_chunks_with_siblings,
+    sanitize_ollama_url
 )
 
 def get_error_detail(ex: Exception) -> str:
@@ -80,6 +81,8 @@ def get_error_detail(ex: Exception) -> str:
                     if isinstance(err_info, dict) and "message" in err_info:
                         return f"HTTP {ex.response.status_code}: {err_info['message']}"
                     elif isinstance(err_info, str):
+                        if "not found" in err_info.lower() and "model" in err_info.lower():
+                            return f"HTTP 404: {err_info}. Please pull the model in terminal (e.g. 'ollama pull qwen2.5-coder:3b') or select an installed model in Settings."
                         return f"HTTP {ex.response.status_code}: {err_info}"
             except Exception:
                 pass
@@ -97,11 +100,17 @@ def get_error_detail(ex: Exception) -> str:
         return f"HTTP Status {ex.response.status_code}"
     elif isinstance(ex, httpx.RequestError):
         detail = str(ex)
+        if "11434" in detail or (hasattr(ex, "request") and "11434" in str(getattr(ex.request, "url", ""))):
+            return "Ollama server is not running or unreachable at http://localhost:11434. Please open a terminal and run 'ollama serve' (or launch Ollama), then verify your model is pulled."
         if not detail or detail.strip() == "":
             detail = "Connection timed out. Make sure the API provider endpoint is active, your internet is connected, and any local/custom models are fully loaded and running."
-        return f"Network/API Timeout Error: {detail}"
+        return f"Network/API Connection Error: {detail}"
     
     msg = str(ex)
+    if "11434" in msg and ("refused" in msg.lower() or "connect" in msg.lower()):
+        return "Ollama server is not running or unreachable at http://localhost:11434. Please open a terminal and run 'ollama serve', then verify your model is pulled."
+    if "model" in msg.lower() and "not found" in msg.lower() and "ollama" in msg.lower():
+        return f"{msg}. Please run 'ollama pull <model_name>' or select an installed model in Settings."
     if not msg or msg.strip() == "":
         return f"Unexpected error: {type(ex).__name__}"
     return msg
@@ -289,8 +298,9 @@ async def consolidate_memories_endpoint(request: ConsolidateRequest, background_
 async def discover_ollama_models(url: str = "http://localhost:11434"):
     import httpx
     try:
+        clean_url = sanitize_ollama_url(url)
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{url.rstrip('/')}/api/tags", timeout=5.0)
+            response = await client.get(f"{clean_url}/api/tags", timeout=5.0)
             if response.status_code == 200:
                 data = response.json()
                 models = [model["name"] for model in data.get("models", [])]
@@ -298,7 +308,10 @@ async def discover_ollama_models(url: str = "http://localhost:11434"):
             else:
                 return {"status": "error", "message": f"Ollama returned status code {response.status_code}"}
     except Exception as e:
-        return {"status": "error", "message": f"Could not connect to Ollama: {str(e)}"}
+        err_str = str(e)
+        if "11434" in err_str or "refused" in err_str.lower():
+            return {"status": "error", "message": "Ollama server is not running. Please run 'ollama serve' in your terminal."}
+        return {"status": "error", "message": f"Could not connect to Ollama: {err_str}"}
 
 # --- REST Endpoints: Documents ---
 @app.get("/api/documents")
