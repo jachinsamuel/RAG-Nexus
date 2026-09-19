@@ -16,7 +16,7 @@ const state = {
         ollamaEmbed: 'nomic-embed-text',
         customUrl: 'https://integrate.api.nvidia.com/v1',
         customKey: '',
-        customModel: 'nvidia/llama-3.1-nemotron-70b-instruct',
+        customModel: 'meta/llama-3.2-11b-vision-instruct',
         customEmbed: 'nvidia/embed-qa-4',
         chunkSize: 500,
         chunkOverlap: 100,
@@ -366,12 +366,13 @@ function initSettings() {
         currentCustom === 'meta/llama-3.1-8b-instruct' || 
         currentCustom === 'meta/llama-3.3-70b-instruct' || 
         currentCustom === 'meta/llama-3.1-70b-instruct' ||
-        currentCustom.includes('llama-3.1-8b') ||
-        currentCustom.includes('llama-3.3-70b') ||
-        currentCustom.includes('llama-3.1-70b');
+        currentCustom === 'nvidia/llama-3.1-nemotron-70b-instruct' ||
+        currentCustom.includes('llama-3.1') ||
+        currentCustom.includes('llama-3.3') ||
+        currentCustom.includes('nemotron-70b');
 
     if (isDecommissionedCustom) {
-        state.settings.customModel = 'nvidia/llama-3.1-nemotron-70b-instruct';
+        state.settings.customModel = 'meta/llama-3.2-11b-vision-instruct';
     }
     if (!state.settings.customUrl) {
         state.settings.customUrl = 'https://integrate.api.nvidia.com/v1';
@@ -430,7 +431,7 @@ function initSettings() {
     
     if (customUrlInput) customUrlInput.value = state.settings.customUrl || 'https://integrate.api.nvidia.com/v1';
     if (customKeyInput) customKeyInput.value = state.settings.customKey || '';
-    if (customModelInput) customModelInput.value = state.settings.customModel || 'nvidia/llama-3.1-nemotron-70b-instruct';
+    if (customModelInput) customModelInput.value = state.settings.customModel || 'meta/llama-3.2-11b-vision-instruct';
     if (customEmbedInput) customEmbedInput.value = state.settings.customEmbed || 'nvidia/embed-qa-4';
     
     if (chunkSizeSlider) {
@@ -536,6 +537,11 @@ function saveSettings() {
     
     // Call configuration endpoint to set workspace root
     configureBackendWorkspace(state.settings.workspacePath, oldPath);
+    
+    const chatModelSelectElem = document.getElementById('chat-model-select');
+    if (chatModelSelectElem) {
+        chatModelSelectElem.value = state.settings.provider;
+    }
     
     updateHeaderDisplay();
     validateInputs();
@@ -707,13 +713,13 @@ async function discoverCustomModels(silent = false) {
             // Auto-select valid active model if currently selected is decommissioned or empty
             const currentGen = (state.settings.customModel || '').trim();
             const isDecom = !currentGen || 
-                currentGen.includes('llama-3.1-8b') || 
-                currentGen.includes('llama-3.3-70b') || 
-                currentGen.includes('llama-3.1-70b') || 
+                currentGen.includes('llama-3.1') || 
+                currentGen.includes('llama-3.3') || 
+                currentGen.includes('nemotron-70b') || 
                 !data.models.includes(currentGen);
 
             if (isDecom && genModels.length > 0) {
-                const preferred = genModels.find(m => m.includes('nemotron-70b') || m.includes('mistral-large-2')) || genModels[0];
+                const preferred = genModels.find(m => m.includes('llama-3.2-11b') || m.includes('llama-3.2-90b') || m.includes('gemma-4-31b')) || genModels[0];
                 state.settings.customModel = preferred;
                 if (customModelInput) customModelInput.value = preferred;
                 try {
@@ -787,6 +793,10 @@ document.querySelectorAll('input[name="provider"]').forEach(radio => {
                 optionsBlocks[key].style.display = (val === key) ? 'block' : 'none';
             }
         });
+        const chatModelSelectElem = document.getElementById('chat-model-select');
+        if (chatModelSelectElem) {
+            chatModelSelectElem.value = val;
+        }
         if (val === 'ollama') {
             discoverOllamaModels(true);
         }
@@ -1527,10 +1537,14 @@ function parseMarkdown(text) {
     const codeBlocks = [];
     const chartBlocks = [];
     const mermaidBlocks = [];
-    html = html.replace(/`{2,}(\w*)[ \r]*\n([\s\S]*?)`{2,}/g, (match, lang, code) => {
-        const cleanLang = lang.trim() || 'code';
+    html = html.replace(/`{2,}([a-zA-Z0-9_\-.:]*)(?:[ \t]+([^\r\n]*))?[ \r]*\n([\s\S]*?)`{2,}/g, (match, lang, extra, code) => {
+        let cleanLang = (lang || '').trim() || 'code';
+        let rawCodeBody = code || '';
+        if (extra && extra.trim()) {
+            rawCodeBody = extra.trim() + '\n' + rawCodeBody;
+        }
 
-        const unescapedCode = code
+        const unescapedCode = rawCodeBody
             .replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
@@ -1595,18 +1609,26 @@ function parseMarkdown(text) {
         try {
             parsedSpec = JSON.parse(trimmedCode);
         } catch(e) {
-            parsedSpec = null;
+            const jsonMatch = trimmedCode.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    parsedSpec = JSON.parse(jsonMatch[0]);
+                } catch(e2) {
+                    parsedSpec = null;
+                }
+            }
         }
 
         const isChartJson = !!(parsedSpec && parsedSpec.type && parsedSpec.data && parsedSpec.data.datasets && ['bar', 'line', 'pie', 'doughnut', 'radar', 'polararea'].includes(String(parsedSpec.type).toLowerCase()));
 
         // Check for Chart.js blocks
-        if (cleanLang.toLowerCase() === 'chart' || cleanLang.toLowerCase() === 'chartjs' || isChartJson) {
+        const isChartLang = cleanLang.toLowerCase().includes('chart') || cleanLang.toLowerCase() === 'chartjs';
+        if (isChartLang || isChartJson) {
             const chartIdx = chartBlocks.length;
             const chartId = 'nexus-chart-' + Math.random().toString(36).substring(2, 9);
             const chartTitle = (parsedSpec && parsedSpec.title) ? parsedSpec.title : 'Data Visualization';
             const chartType = (parsedSpec && parsedSpec.type) ? parsedSpec.type.toUpperCase() : 'CHART';
-            const rawJsonEscaped = encodeURIComponent(unescapedCode.trim());
+            const rawJsonEscaped = encodeURIComponent(parsedSpec ? JSON.stringify(parsedSpec) : unescapedCode.trim());
             
             chartBlocks.push(`
             <div class="nexus-chart-card" id="${chartId}-card">

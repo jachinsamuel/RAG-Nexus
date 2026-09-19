@@ -369,14 +369,13 @@
                         </div>
                         <div class="settings-group">
                             <label for="custom-model">Generative Model</label>
-                            <input type="text" id="custom-model" placeholder="e.g. nvidia/llama-3.1-nemotron-70b-instruct" list="custom-generative-datalist">
+                            <input type="text" id="custom-model" placeholder="e.g. meta/llama-3.2-11b-vision-instruct" list="custom-generative-datalist">
                             <datalist id="custom-generative-datalist">
-                                <option value="nvidia/llama-3.1-nemotron-70b-instruct">nvidia/llama-3.1-nemotron-70b-instruct (Recommended Active)</option>
-                                <option value="mistralai/mistral-large-2-instruct">mistralai/mistral-large-2-instruct (Active)</option>
-                                <option value="meta/llama-3.2-90b-vision-instruct">meta/llama-3.2-90b-vision-instruct (Active Multimodal)</option>
-                                <option value="nvidia/llama-3.1-nemotron-51b-instruct">nvidia/llama-3.1-nemotron-51b-instruct (Active Fast)</option>
-                                <option value="meta/codellama-70b">meta/codellama-70b (Active Code)</option>
-                                <option value="mistralai/codestral-22b-instruct-v0.1">mistralai/codestral-22b-instruct-v0.1 (Active Code)</option>
+                                <option value="meta/llama-3.2-11b-vision-instruct">meta/llama-3.2-11b-vision-instruct (Recommended Active)</option>
+                                <option value="meta/llama-3.2-90b-vision-instruct">meta/llama-3.2-90b-vision-instruct (Active Vision/Text)</option>
+                                <option value="deepseek-ai/deepseek-v4-flash-0731">deepseek-ai/deepseek-v4-flash-0731 (Active Fast)</option>
+                                <option value="google/gemma-4-31b-it">google/gemma-4-31b-it (Active)</option>
+                                <option value="openai/gpt-oss-20b">openai/gpt-oss-20b (Active)</option>
                             </datalist>
                         </div>
                         <div class="settings-group">
@@ -617,6 +616,6 @@
     <!-- Active Script bindings for frontend control panel -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script src="app.js?v=20.0"></script>
+    <script src="app.js?v=23.0"></script>
 </body>
 </html>
