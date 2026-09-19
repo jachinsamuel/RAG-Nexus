@@ -313,6 +313,32 @@ async def discover_ollama_models(url: str = "http://localhost:11434"):
             return {"status": "error", "message": "Ollama server is not running. Please run 'ollama serve' in your terminal."}
         return {"status": "error", "message": f"Could not connect to Ollama: {err_str}"}
 
+# --- REST Endpoints: Custom / OpenAI-Compatible Model Discovery ---
+@app.get("/api/custom/discover")
+async def discover_custom_models(url: str = "https://integrate.api.nvidia.com/v1", api_key: Optional[str] = None):
+    import httpx
+    try:
+        clean_url = url.rstrip("/")
+        headers = {}
+        if api_key and api_key.strip():
+            headers["Authorization"] = f"Bearer {api_key.strip()}"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{clean_url}/models", headers=headers, timeout=8.0)
+            if response.status_code == 200:
+                data = response.json()
+                raw_models = data.get("data", []) or data.get("models", [])
+                models = []
+                for item in raw_models:
+                    if isinstance(item, dict) and "id" in item:
+                        models.append(item["id"])
+                    elif isinstance(item, str):
+                        models.append(item)
+                return {"status": "success", "models": sorted(models)}
+            else:
+                return {"status": "error", "message": f"Custom provider returned status code {response.status_code}"}
+    except Exception as e:
+        return {"status": "error", "message": f"Could not connect to custom provider: {str(e)}"}
+
 # --- REST Endpoints: Documents ---
 @app.get("/api/documents")
 async def get_documents():

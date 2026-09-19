@@ -12,12 +12,12 @@ const state = {
         claudeKey: '',
         claudeModel: 'claude-3-5-sonnet-latest',
         claudeEmbedProvider: 'gemini',
-        ollamaModel: 'llama3',
+        ollamaModel: 'qwen2.5-coder:3b',
         ollamaEmbed: 'nomic-embed-text',
-        customUrl: '',
+        customUrl: 'https://integrate.api.nvidia.com/v1',
         customKey: '',
-        customModel: '',
-        customEmbed: '',
+        customModel: 'meta/llama-3.3-70b-instruct',
+        customEmbed: 'nvidia/embeddings-nv-embed-qa-4',
         chunkSize: 500,
         chunkOverlap: 100,
         topK: 4,
@@ -357,6 +357,20 @@ function initSettings() {
         state.settings.workspaceHistory.push(state.settings.workspacePath);
     }
     
+    // Auto-migrate decommissioned models and stale defaults
+    if (state.settings.ollamaModel === 'llama3' || !state.settings.ollamaModel) {
+        state.settings.ollamaModel = 'qwen2.5-coder:3b';
+    }
+    if (state.settings.customModel === 'meta/llama-3.1-8b-instruct' || !state.settings.customModel) {
+        state.settings.customModel = 'meta/llama-3.3-70b-instruct';
+    }
+    if (!state.settings.customUrl) {
+        state.settings.customUrl = 'https://integrate.api.nvidia.com/v1';
+    }
+    if (!state.settings.customEmbed) {
+        state.settings.customEmbed = 'nvidia/embeddings-nv-embed-qa-4';
+    }
+    
     // Bind to DOM
     document.querySelectorAll('input[name="provider"]').forEach(radio => {
         if (radio.value === state.settings.provider) {
@@ -395,13 +409,13 @@ function initSettings() {
     if (claudeEmbedProviderSelect) claudeEmbedProviderSelect.value = state.settings.claudeEmbedProvider || 'gemini';
     
     if (ollamaUrlInput) ollamaUrlInput.value = state.settings.ollamaUrl || 'http://localhost:11434';
-    if (ollamaModelInput) ollamaModelInput.value = state.settings.ollamaModel || 'llama3';
+    if (ollamaModelInput) ollamaModelInput.value = state.settings.ollamaModel || 'qwen2.5-coder:3b';
     if (ollamaEmbedInput) ollamaEmbedInput.value = state.settings.ollamaEmbed || 'nomic-embed-text';
     
-    if (customUrlInput) customUrlInput.value = state.settings.customUrl || '';
+    if (customUrlInput) customUrlInput.value = state.settings.customUrl || 'https://integrate.api.nvidia.com/v1';
     if (customKeyInput) customKeyInput.value = state.settings.customKey || '';
-    if (customModelInput) customModelInput.value = state.settings.customModel || '';
-    if (customEmbedInput) customEmbedInput.value = state.settings.customEmbed || '';
+    if (customModelInput) customModelInput.value = state.settings.customModel || 'meta/llama-3.3-70b-instruct';
+    if (customEmbedInput) customEmbedInput.value = state.settings.customEmbed || 'nvidia/embeddings-nv-embed-qa-4';
     
     if (chunkSizeSlider) {
         chunkSizeSlider.value = state.settings.chunkSize;
@@ -624,6 +638,90 @@ if (scanOllamaBtn) {
         } finally {
             scanOllamaBtn.disabled = false;
             scanOllamaBtn.textContent = 'Scan';
+        }
+    });
+}
+
+// Auto-Discovery for Custom / OpenAI-Compatible (e.g. NVIDIA NIM) Models
+async function discoverCustomModels(silent = false) {
+    const urlInput = document.getElementById('custom-url');
+    const keyInput = document.getElementById('custom-key');
+    const url = urlInput ? (urlInput.value.trim() || 'https://integrate.api.nvidia.com/v1') : 'https://integrate.api.nvidia.com/v1';
+    const key = keyInput ? keyInput.value.trim() : '';
+
+    try {
+        let endpoint = `/api/custom/discover?url=${encodeURIComponent(url)}`;
+        if (key) endpoint += `&api_key=${encodeURIComponent(key)}`;
+        const resp = await fetch(endpoint);
+        const data = await resp.json();
+        if (data.status === 'success' && Array.isArray(data.models) && data.models.length > 0) {
+            const genDatalist = document.getElementById('custom-generative-datalist');
+            const embedDatalist = document.getElementById('custom-embed-datalist');
+
+            if (genDatalist) genDatalist.innerHTML = '';
+            if (embedDatalist) embedDatalist.innerHTML = '';
+
+            const genModels = [];
+            const embedModels = [];
+
+            data.models.forEach(model => {
+                if (model.toLowerCase().includes('embed') || model.toLowerCase().includes('bge-')) {
+                    embedModels.push(model);
+                } else {
+                    genModels.push(model);
+                }
+            });
+
+            // Populate datalists
+            (genModels.length > 0 ? genModels : data.models).forEach(m => {
+                if (genDatalist) {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    genDatalist.appendChild(opt);
+                }
+            });
+            (embedModels.length > 0 ? embedModels : data.models).forEach(m => {
+                if (embedDatalist) {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    embedDatalist.appendChild(opt);
+                }
+            });
+
+            // Auto-select valid active model if currently selected is decommissioned or empty
+            const currentGen = (state.settings.customModel || '').trim();
+            if ((!currentGen || currentGen === 'meta/llama-3.1-8b-instruct' || !data.models.includes(currentGen)) && genModels.length > 0) {
+                const preferred = genModels.find(m => m.includes('llama-3.3-70b') || m.includes('llama-3.1-70b')) || genModels[0];
+                state.settings.customModel = preferred;
+                if (customModelInput) customModelInput.value = preferred;
+            }
+
+            if (!silent) {
+                showToast(`Found ${data.models.length} custom/NVIDIA model(s)`, 'success');
+            }
+            return data.models;
+        } else if (!silent) {
+            showToast(`Scan failed: ${data.message || 'No models found'}`, 'error');
+        }
+    } catch (err) {
+        if (!silent) {
+            showToast(`Error scanning models: ${err.message}`, 'error');
+        }
+    }
+    return [];
+}
+
+// Scan Custom models button listener
+const scanCustomBtn = document.getElementById('scan-custom-btn');
+if (scanCustomBtn) {
+    scanCustomBtn.addEventListener('click', async () => {
+        scanCustomBtn.disabled = true;
+        scanCustomBtn.textContent = 'Scanning...';
+        try {
+            await discoverCustomModels(false);
+        } finally {
+            scanCustomBtn.disabled = false;
+            scanCustomBtn.textContent = 'Scan';
         }
     });
 }
@@ -1416,8 +1514,9 @@ function parseMarkdown(text) {
 
         // Check for Mermaid diagram blocks
         const lowerLang = cleanLang.toLowerCase();
-        const isMermaidKeyword = /^(graph\s+(TD|TB|BT|RL|LR)|flowchart\s+(TD|TB|BT|RL|LR)|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|mindmap|gantt|pie(\s+title)?|gitGraph|quadrantChart|c4Context|requirementDiagram)/i.test(trimmedCode);
-        const isMermaid = lowerLang === 'mermaid' || lowerLang === 'mermaidjs' || ((lowerLang === 'graph' || lowerLang === 'flowchart') && isMermaidKeyword) || isMermaidKeyword;
+        const strippedMermaidHead = trimmedCode.replace(/^%%[^\n]*\n+/i, '').replace(/^`{3,}(?:mermaid)?\s*/i, '').trim();
+        const isMermaidKeyword = /^(graph(\s+(TD|TB|BT|RL|LR))?|flowchart(\s+(TD|TB|BT|RL|LR))?|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|mindmap|gantt|pie(\s+title)?|gitGraph|quadrantChart|c4Context|requirementDiagram|subgraph\s+)/i.test(strippedMermaidHead);
+        const isMermaid = lowerLang === 'mermaid' || lowerLang === 'mermaidjs' || lowerLang === 'mermaid.js' || lowerLang === 'diagram' || isMermaidKeyword;
 
         if (isMermaid) {
             const mermaidIdx = mermaidBlocks.length;
@@ -3657,6 +3756,108 @@ function initMermaidEngine() {
     }
 }
 
+// Robust Mermaid Code Sanitizer for LLM outputs (NVIDIA NIM, Ollama, Gemini, OpenAI)
+function sanitizeMermaidCode(raw) {
+    if (!raw) return '';
+    let code = raw.trim();
+
+    // 1. Remove markdown wrapper fences if nested
+    code = code.replace(/^`{3,}(?:mermaid)?\s*/i, '').replace(/`{3,}\s*$/i, '').trim();
+
+    // 2. Unescape common HTML entities
+    code = code
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+
+    const lines = code.split('\n');
+    const cleaned = [];
+    let hasDiagramType = false;
+    const diagramKeywords = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|mindmap|gantt|pie|gitGraph|quadrantChart|c4Context|requirementDiagram)/i;
+
+    let subIndex = 1;
+    for (let line of lines) {
+        let t = line.trim();
+        if (!t) {
+            cleaned.push('');
+            continue;
+        }
+
+        // Convert python/shell style comments (#) to Mermaid comments (%%)
+        if (t.startsWith('#')) {
+            cleaned.push('%% ' + t.replace(/^#+\s*/, ''));
+            continue;
+        }
+
+        // Identify diagram type header
+        if (!hasDiagramType && diagramKeywords.test(t)) {
+            hasDiagramType = true;
+            // Ensure bare "graph" or "flowchart" has a direction
+            if (/^(graph|flowchart)$/i.test(t)) {
+                t = 'graph TD';
+            }
+            cleaned.push(t);
+            continue;
+        }
+
+        // Remove trailing semicolons from diagram statements
+        t = t.replace(/;+\s*$/, '');
+
+        // Fix unquoted subgraphs: e.g. "subgraph User Authentication" -> 'subgraph sub_1 ["User Authentication"]'
+        const subMatch = t.match(/^subgraph\s+([^\["\n]+?)$/i);
+        if (subMatch && !t.includes('[') && !t.includes('"')) {
+            const subTitle = subMatch[1].trim();
+            if (subTitle && subTitle.toLowerCase() !== 'end') {
+                t = `subgraph sub_${subIndex++} ["${subTitle}"]`;
+            }
+        }
+
+        // Fix unquoted labels containing special characters in [ ... ]
+        t = t.replace(/(\b[a-zA-Z0-9_-]+)\[([^"\]\n]+?)\]/g, (match, id, inner) => {
+            if (/[\(\)&:;\?\/,#]/.test(inner) && !inner.startsWith('"') && !inner.endsWith('"')) {
+                return `${id}["${inner.trim()}"]`;
+            }
+            return match;
+        });
+
+        // Fix unquoted labels containing special characters in { ... }
+        t = t.replace(/(\b[a-zA-Z0-9_-]+)\{([^"\}\n]+?)\}/g, (match, id, inner) => {
+            if (/[\(\)&:;\?\/,#]/.test(inner) && !inner.startsWith('"') && !inner.endsWith('"')) {
+                return `${id}{"${inner.trim()}"}`;
+            }
+            return match;
+        });
+
+        // Fix unquoted labels containing special characters in -->|...|
+        t = t.replace(/-->\|([^"\|\n]+?)\|/g, (match, inner) => {
+            if (/[\(\)&:;\?\/,#]/.test(inner) && !inner.startsWith('"') && !inner.endsWith('"')) {
+                return `-->|"${inner.trim()}"|`;
+            }
+            return match;
+        });
+
+        cleaned.push(t);
+    }
+
+    // If no diagram type declaration was encountered, default to graph TD
+    if (!hasDiagramType) {
+        cleaned.unshift('graph TD');
+    }
+
+    return cleaned.join('\n');
+}
+
+function aggressiveSanitizeMermaid(code) {
+    if (!code) return '';
+    let res = sanitizeMermaidCode(code);
+    // Quote all square bracket node texts
+    res = res.replace(/(\b[a-zA-Z0-9_-]+)\[([^"\]\n]+?)\]/g, (m, id, inner) => `${id}["${inner.replace(/"/g, "'").trim()}"]`);
+    res = res.replace(/(\b[a-zA-Z0-9_-]+)\{([^"\}\n]+?)\}/g, (m, id, inner) => `${id}{"${inner.replace(/"/g, "'").trim()}"}`);
+    return res;
+}
+
 // Render all Mermaid diagram panes inside a container
 async function renderMermaidDiagrams(container) {
     if (!window.mermaid || !container) return;
@@ -3667,20 +3868,37 @@ async function renderMermaidDiagrams(container) {
         if (pane.dataset.rendered === 'true') continue;
         const rawCode = decodeURIComponent(pane.dataset.code || '');
         if (!rawCode) continue;
+
+        const sanitized = sanitizeMermaidCode(rawCode);
         
         try {
             const uniqueId = 'svg-' + Math.random().toString(36).substring(2, 9);
-            const { svg } = await mermaid.render(uniqueId, rawCode);
+            const { svg } = await mermaid.render(uniqueId, sanitized);
             pane.innerHTML = svg;
             pane.dataset.rendered = 'true';
         } catch (err) {
-            console.warn('Mermaid render error:', err);
             // Clean up stray Mermaid error SVGs added to document body by mermaid.js
             try {
                 const strayErrors = document.querySelectorAll('svg[id^="dsvg-"]');
                 strayErrors.forEach(s => s.remove());
             } catch(e) {}
+
+            // Second pass: attempt aggressive repair before displaying notice
+            try {
+                const aggressive = aggressiveSanitizeMermaid(rawCode);
+                const retryId = 'svg-retry-' + Math.random().toString(36).substring(2, 9);
+                const { svg: retrySvg } = await mermaid.render(retryId, aggressive);
+                pane.innerHTML = retrySvg;
+                pane.dataset.rendered = 'true';
+                continue;
+            } catch (retryErr) {
+                try {
+                    const strayErrors = document.querySelectorAll('svg[id^="dsvg-"]');
+                    strayErrors.forEach(s => s.remove());
+                } catch(e) {}
+            }
             
+            console.warn('Mermaid render error:', err);
             const escapedCode = rawCode.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             pane.innerHTML = `
                 <div style="font-size: 11.5px; color: var(--red-alert, #f43f5e); padding: 12px; background: rgba(244, 63, 94, 0.07); border-radius: 8px; text-align: left; width: 100%;">

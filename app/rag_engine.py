@@ -636,6 +636,11 @@ async def generate_response_stream(
         "You must NEVER use emojis under any circumstances in your responses. Keep all text highly professional, clean, and developer-oriented. "
         "If source document context is provided, ground your answers in it and cite relevant details; otherwise, use your full software engineering capabilities. "
         "When the user asks to draw, create, or generate any diagram (flowchart, sequence diagram, architecture diagram, class diagram, mindmap, state diagram, ERD, etc.), ALWAYS output a valid, complete Mermaid.js code block formatted as ```mermaid ... ```. Never output ASCII art. "
+        "Strict Mermaid Syntax Rules: "
+        "1. Always wrap text inside node shapes in double quotes. E.g.: A[\"User Login (Form)\"] --> B{\"Valid Credentials?\"} --> C[\"Dashboard Access\"]. "
+        "2. Never use unquoted parentheses, colons, ampersands, or slashes inside node brackets. "
+        "3. Do not put semicolons at the end of lines. "
+        "4. Start the code block immediately with graph TD or flowchart TD or sequenceDiagram on line 1. "
         "When the user asks to draw, create, or generate an image or picture (concept art, UI mockups, logos, illustrations, scenery, etc.), ALWAYS output Markdown image syntax formatted as ![detailed_prompt](https://image.pollinations.ai/prompt/<url_encoded_prompt>?width=1024&height=1024&nologo=true) using the user prompt with spaces replaced by %20 so it renders instantly as an interactive image card. Output ONLY the image markdown without conversational filler text like 'Here is the generated image:'. "
         "When the user asks for charts, graphs, data visualization, comparisons, distributions, or statistical analysis (or when analyzing tabular/CSV data), ALWAYS output an interactive Chart.js block formatted as ```chart\n{\n  \"type\": \"bar\",\n  \"title\": \"Title of Chart\",\n  \"data\": {\n    \"labels\": [\"A\", \"B\", \"C\"],\n    \"datasets\": [{\"label\": \"Metric\", \"data\": [10, 20, 30]}]\n  },\n  \"options\": {}\n}\n```. Supported types include bar, line, pie, doughnut, radar, and polarArea."
     )
@@ -902,6 +907,19 @@ async def generate_response_stream(
     elif provider == "ollama":
         url = sanitize_ollama_url(ollama_url)
         model_name = model or "llama3"
+        
+        # If model is default "llama3" or not explicitly set, auto-fallback to available installed generative model
+        if not model or model.strip() in ["llama3", "llama3:latest"]:
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as check_client:
+                    tags_res = await check_client.get(f"{url}/api/tags")
+                    if tags_res.status_code == 200:
+                        installed = [m.get("name", "") for m in tags_res.json().get("models", [])]
+                        gen_models = [m for m in installed if not any(emb in m.lower() for emb in ["embed", "bge", "bert"])]
+                        if gen_models and (model_name not in installed):
+                            model_name = gen_models[0]
+            except Exception:
+                pass
         
         ollama_messages = [{"role": "system", "content": full_system_prompt}]
         for msg in messages:
