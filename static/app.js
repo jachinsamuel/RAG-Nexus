@@ -16,8 +16,8 @@ const state = {
         ollamaEmbed: 'nomic-embed-text',
         customUrl: 'https://integrate.api.nvidia.com/v1',
         customKey: '',
-        customModel: 'meta/llama-3.3-70b-instruct',
-        customEmbed: 'nvidia/embeddings-nv-embed-qa-4',
+        customModel: 'nvidia/llama-3.1-nemotron-70b-instruct',
+        customEmbed: 'nvidia/embed-qa-4',
         chunkSize: 500,
         chunkOverlap: 100,
         topK: 4,
@@ -361,15 +361,31 @@ function initSettings() {
     if (state.settings.ollamaModel === 'llama3' || !state.settings.ollamaModel) {
         state.settings.ollamaModel = 'qwen2.5-coder:3b';
     }
-    if (state.settings.customModel === 'meta/llama-3.1-8b-instruct' || !state.settings.customModel) {
-        state.settings.customModel = 'meta/llama-3.3-70b-instruct';
+    const currentCustom = (state.settings.customModel || '').trim();
+    const isDecommissionedCustom = !currentCustom || 
+        currentCustom === 'meta/llama-3.1-8b-instruct' || 
+        currentCustom === 'meta/llama-3.3-70b-instruct' || 
+        currentCustom === 'meta/llama-3.1-70b-instruct' ||
+        currentCustom.includes('llama-3.1-8b') ||
+        currentCustom.includes('llama-3.3-70b') ||
+        currentCustom.includes('llama-3.1-70b');
+
+    if (isDecommissionedCustom) {
+        state.settings.customModel = 'nvidia/llama-3.1-nemotron-70b-instruct';
     }
     if (!state.settings.customUrl) {
         state.settings.customUrl = 'https://integrate.api.nvidia.com/v1';
     }
-    if (!state.settings.customEmbed) {
-        state.settings.customEmbed = 'nvidia/embeddings-nv-embed-qa-4';
+    const currentEmbed = (state.settings.customEmbed || '').trim();
+    const isStaleEmbed = !currentEmbed || 
+        currentEmbed === 'nvidia/embeddings-nv-embed-qa-4' || 
+        currentEmbed === 'baai/bge-large-en-v1.5';
+    if (isStaleEmbed) {
+        state.settings.customEmbed = 'nvidia/embed-qa-4';
     }
+    try {
+        localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+    } catch(e) {}
     
     // Bind to DOM
     document.querySelectorAll('input[name="provider"]').forEach(radio => {
@@ -414,8 +430,8 @@ function initSettings() {
     
     if (customUrlInput) customUrlInput.value = state.settings.customUrl || 'https://integrate.api.nvidia.com/v1';
     if (customKeyInput) customKeyInput.value = state.settings.customKey || '';
-    if (customModelInput) customModelInput.value = state.settings.customModel || 'meta/llama-3.3-70b-instruct';
-    if (customEmbedInput) customEmbedInput.value = state.settings.customEmbed || 'nvidia/embeddings-nv-embed-qa-4';
+    if (customModelInput) customModelInput.value = state.settings.customModel || 'nvidia/llama-3.1-nemotron-70b-instruct';
+    if (customEmbedInput) customEmbedInput.value = state.settings.customEmbed || 'nvidia/embed-qa-4';
     
     if (chunkSizeSlider) {
         chunkSizeSlider.value = state.settings.chunkSize;
@@ -690,10 +706,19 @@ async function discoverCustomModels(silent = false) {
 
             // Auto-select valid active model if currently selected is decommissioned or empty
             const currentGen = (state.settings.customModel || '').trim();
-            if ((!currentGen || currentGen === 'meta/llama-3.1-8b-instruct' || !data.models.includes(currentGen)) && genModels.length > 0) {
-                const preferred = genModels.find(m => m.includes('llama-3.3-70b') || m.includes('llama-3.1-70b')) || genModels[0];
+            const isDecom = !currentGen || 
+                currentGen.includes('llama-3.1-8b') || 
+                currentGen.includes('llama-3.3-70b') || 
+                currentGen.includes('llama-3.1-70b') || 
+                !data.models.includes(currentGen);
+
+            if (isDecom && genModels.length > 0) {
+                const preferred = genModels.find(m => m.includes('nemotron-70b') || m.includes('mistral-large-2')) || genModels[0];
                 state.settings.customModel = preferred;
                 if (customModelInput) customModelInput.value = preferred;
+                try {
+                    localStorage.setItem('symphony_rag_settings', JSON.stringify(state.settings));
+                } catch(e) {}
             }
 
             if (!silent) {

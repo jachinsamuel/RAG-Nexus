@@ -369,23 +369,23 @@
                         </div>
                         <div class="settings-group">
                             <label for="custom-model">Generative Model</label>
-                            <input type="text" id="custom-model" placeholder="e.g. meta/llama-3.3-70b-instruct" list="custom-generative-datalist">
+                            <input type="text" id="custom-model" placeholder="e.g. nvidia/llama-3.1-nemotron-70b-instruct" list="custom-generative-datalist">
                             <datalist id="custom-generative-datalist">
-                                <option value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct (Recommended)</option>
-                                <option value="meta/llama-3.1-70b-instruct">meta/llama-3.1-70b-instruct</option>
-                                <option value="nvidia/llama-3.1-nemotron-70b-instruct">nvidia/llama-3.1-nemotron-70b-instruct</option>
-                                <option value="mistralai/mistral-large-2-instruct">mistralai/mistral-large-2-instruct</option>
-                                <option value="deepseek-ai/deepseek-r1">deepseek-ai/deepseek-r1</option>
-                                <option value="qwen/qwen2.5-72b-instruct">qwen/qwen2.5-72b-instruct</option>
+                                <option value="nvidia/llama-3.1-nemotron-70b-instruct">nvidia/llama-3.1-nemotron-70b-instruct (Recommended Active)</option>
+                                <option value="mistralai/mistral-large-2-instruct">mistralai/mistral-large-2-instruct (Active)</option>
+                                <option value="meta/llama-3.2-90b-vision-instruct">meta/llama-3.2-90b-vision-instruct (Active Multimodal)</option>
+                                <option value="nvidia/llama-3.1-nemotron-51b-instruct">nvidia/llama-3.1-nemotron-51b-instruct (Active Fast)</option>
+                                <option value="meta/codellama-70b">meta/codellama-70b (Active Code)</option>
+                                <option value="mistralai/codestral-22b-instruct-v0.1">mistralai/codestral-22b-instruct-v0.1 (Active Code)</option>
                             </datalist>
                         </div>
                         <div class="settings-group">
                             <label for="custom-embed">Embedding Model</label>
-                            <input type="text" id="custom-embed" placeholder="e.g. nvidia/embeddings-nv-embed-qa-4" list="custom-embed-datalist">
+                            <input type="text" id="custom-embed" placeholder="e.g. nvidia/embed-qa-4" list="custom-embed-datalist">
                             <datalist id="custom-embed-datalist">
-                                <option value="nvidia/embeddings-nv-embed-qa-4">nvidia/embeddings-nv-embed-qa-4 (Recommended)</option>
-                                <option value="nvidia/nv-embedqa-e5-v5">nvidia/nv-embedqa-e5-v5</option>
-                                <option value="baai/bge-large-en-v1.5">baai/bge-large-en-v1.5</option>
+                                <option value="nvidia/embed-qa-4">nvidia/embed-qa-4 (Recommended Active)</option>
+                                <option value="nvidia/llama-3.2-nv-embedqa-1b-v1">nvidia/llama-3.2-nv-embedqa-1b-v1 (Active)</option>
+                                <option value="snowflake/arctic-embed-l">snowflake/arctic-embed-l (Active)</option>
                             </datalist>
                         </div>
                     </div>
@@ -617,6 +617,6 @@
     <!-- Active Script bindings for frontend control panel -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script src="app.js?v=19.0"></script>
+    <script src="app.js?v=20.0"></script>
 </body>
 </html>

@@ -184,6 +184,12 @@ async def get_embedding(
         model_name = model
         if not model_name:
             raise ValueError("Custom embedding model name is required.")
+        # Auto-migrate decommissioned/broken NVIDIA embeddings
+        if "nvidia" in ollama_url.lower() and (
+            model_name in ["nvidia/embeddings-nv-embed-qa-4", "baai/bge-large-en-v1.5"]
+            or "embeddings-nv-embed-qa-4" in model_name
+        ):
+            model_name = "nvidia/embed-qa-4"
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -975,6 +981,12 @@ async def generate_response_stream(
         model_name = model
         if not model_name:
             raise ValueError("Custom generative model name is required.")
+        # Proactively migrate decommissioned NVIDIA models to active flagship
+        if "nvidia" in ollama_url.lower() and (
+            model_name in ["meta/llama-3.1-8b-instruct", "meta/llama-3.3-70b-instruct", "meta/llama-3.1-70b-instruct"]
+            or "llama-3.1-8b" in model_name or "llama-3.3-70b" in model_name or "llama-3.1-70b" in model_name
+        ):
+            model_name = "nvidia/llama-3.1-nemotron-70b-instruct"
             
         custom_messages = [{"role": "system", "content": full_system_prompt}]
         for msg in messages:
@@ -998,6 +1010,35 @@ async def generate_response_stream(
                 json=payload,
                 timeout=60.0
             ) as response:
+                if response.status_code == 410 and "nvidia" in ollama_url.lower() and model_name != "nvidia/llama-3.1-nemotron-70b-instruct":
+                    # Decommissioned model requested on NVIDIA NIM, auto-fallback to active flagship model
+                    fallback_model = "nvidia/llama-3.1-nemotron-70b-instruct"
+                    retry_payload = {**payload, "model": fallback_model}
+                    async with client.stream(
+                        "POST",
+                        f"{ollama_url.rstrip('/')}/chat/completions",
+                        headers=headers,
+                        json=retry_payload,
+                        timeout=60.0
+                    ) as retry_res:
+                        if retry_res.status_code == 200:
+                            async for r_line in retry_res.aiter_lines():
+                                r_trimmed = r_line.strip()
+                                if not r_trimmed:
+                                    continue
+                                if r_trimmed.startswith("data: "):
+                                    r_data_str = r_trimmed[6:]
+                                    if r_data_str == "[DONE]":
+                                        break
+                                    try:
+                                        r_data = json.loads(r_data_str)
+                                        r_content = r_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                        if r_content:
+                                            yield r_content
+                                    except Exception as re:
+                                        print(f"Error parsing Custom retry chunk: {re}")
+                            return
+
                 if response.status_code != 200:
                     err_body = await response.aread()
                     err_text = err_body.decode("utf-8", errors="ignore")
