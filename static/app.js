@@ -1537,11 +1537,11 @@ function parseMarkdown(text) {
     const codeBlocks = [];
     const chartBlocks = [];
     const mermaidBlocks = [];
-    html = html.replace(/`{2,}([a-zA-Z0-9_\-.:]*)(?:[ \t]+([^\r\n]*))?[ \r]*\n([\s\S]*?)`{2,}/g, (match, lang, extra, code) => {
+    html = html.replace(/`{2,}([a-zA-Z0-9_\-.:]*)[ \t]*([^\r\n]*?)(?:\r?\n|(?=\s))([\s\S]*?)`{2,}/g, (match, lang, extra, code) => {
         let cleanLang = (lang || '').trim() || 'code';
-        let rawCodeBody = code || '';
+        let rawCodeBody = (code || '').trim();
         if (extra && extra.trim()) {
-            rawCodeBody = extra.trim() + '\n' + rawCodeBody;
+            rawCodeBody = extra.trim() + (rawCodeBody ? '\n' + rawCodeBody : '');
         }
 
         const unescapedCode = rawCodeBody
