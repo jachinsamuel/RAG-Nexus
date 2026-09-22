@@ -1524,6 +1524,47 @@ function parseTableBlock(tableLines) {
     return html;
 }
 
+function parseChartSpec(rawCode) {
+    if (!rawCode || typeof rawCode !== 'string') return null;
+    let text = rawCode.trim();
+    
+    // 1. Try standard JSON.parse directly
+    try {
+        const res = JSON.parse(text);
+        if (res && typeof res === 'object') return res;
+    } catch(e) {}
+    
+    // 2. Try extracting outermost { ... }
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        try {
+            const res = JSON.parse(jsonMatch[0]);
+            if (res && typeof res === 'object') return res;
+        } catch(e) {}
+        text = jsonMatch[0];
+    }
+    
+    // 3. Try safe JavaScript object literal evaluation (handles 1250000 + 1480000, unquoted keys, comments)
+    try {
+        const fn = new Function('return (' + text + ');');
+        const res = fn();
+        if (res && typeof res === 'object') return res;
+    } catch(e) {}
+
+    // 4. Clean trailing commas / single quotes and retry
+    try {
+        const cleaned = text
+            .replace(/,\s*([\]}])/g, '$1')
+            .replace(/'/g, '"');
+        const fn = new Function('return (' + cleaned + ');');
+        const res = fn();
+        if (res && typeof res === 'object') return res;
+    } catch(e) {}
+
+    return null;
+}
+window.parseChartSpec = parseChartSpec;
+
 function parseMarkdown(text) {
     if (!text) return '';
     
@@ -1605,20 +1646,7 @@ function parseMarkdown(text) {
             return `\n\n__MERMAID_BLOCK_${mermaidIdx}__\n\n`;
         }
 
-        let parsedSpec = null;
-        try {
-            parsedSpec = JSON.parse(trimmedCode);
-        } catch(e) {
-            const jsonMatch = trimmedCode.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                try {
-                    parsedSpec = JSON.parse(jsonMatch[0]);
-                } catch(e2) {
-                    parsedSpec = null;
-                }
-            }
-        }
-
+        let parsedSpec = parseChartSpec(trimmedCode);
         const isChartJson = !!(parsedSpec && parsedSpec.type && parsedSpec.data && parsedSpec.data.datasets && ['bar', 'line', 'pie', 'doughnut', 'radar', 'polararea'].includes(String(parsedSpec.type).toLowerCase()));
 
         // Check for Chart.js blocks
@@ -4302,7 +4330,8 @@ function renderChartJsVisualizations(container) {
         const rawJson = canvas.getAttribute('data-chart-spec');
         if (!rawJson) return;
         try {
-            const spec = JSON.parse(decodeURIComponent(rawJson));
+            const decoded = decodeURIComponent(rawJson);
+            const spec = parseChartSpec(decoded);
             if (!spec || !spec.data) return;
             
             const textColor = isLight ? '#0f172a' : '#f8fafc';
