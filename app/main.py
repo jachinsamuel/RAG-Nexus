@@ -29,13 +29,19 @@ from app.models import (
     SandboxRequest,
     CodeRunRequest,
     LcsDiffRequest,
-    LcsDiffApplyRequest
+    LcsDiffApplyRequest,
+    VideoGenRequest
 )
 from app.image_engine import (
     is_image_request,
     extract_image_prompt,
     build_image_url,
     download_and_cache_image
+)
+from app.video_engine import (
+    is_video_request,
+    extract_video_prompt,
+    generate_and_cache_video
 )
 from app.diagram_engine import generate_diagram_code
 from app.url_ingestor import ingest_url_to_knowledge, is_youtube_url
@@ -1011,6 +1017,40 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 embedding=query_embedding
             )
 
+        # Direct /video shortcut command handling
+        if query.strip().startswith("/video"):
+            video_prompt = extract_video_prompt(query)
+            async def direct_video_stream():
+                yield f"event: telemetry\ndata: {json.dumps({'latency_ms': 50, 'cache_hit': False})}\n\n"
+                yield f"event: sources\ndata: {json.dumps([])}\n\n"
+                video_res = await generate_and_cache_video(
+                    prompt=video_prompt,
+                    static_dir=static_dir,
+                    duration=4,
+                    fps=24,
+                    aspect_ratio="16:9",
+                    motion_style="cinematic_zoom",
+                    title=video_prompt.capitalize()
+                )
+                if video_res.get("status") == "success":
+                    video_block = (
+                        "```video\n" + 
+                        json.dumps({
+                            "title": video_res.get("title", "AI Generated Video"),
+                            "prompt": video_prompt,
+                            "url": video_res.get("videoUrl"),
+                            "duration": video_res.get("duration", 4),
+                            "fps": video_res.get("fps", 24)
+                        }, indent=2) + 
+                        "\n```\n"
+                    )
+                else:
+                    video_block = f"Unable to generate video: {video_res.get('message', 'Generation error')}"
+                
+                yield f"event: text\ndata: {json.dumps(video_block)}\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(direct_video_stream(), media_type="text/event-stream")
+
         # Check if query is in semantic cache
         cached_response = None
         if query_embedding is not None:
@@ -1475,6 +1515,26 @@ async def generate_ai_image(req: ImageGenRequest):
 async def generate_mermaid_diagram(req: DiagramGenRequest):
     """Interactive Diagram Generator using Mermaid.js Syntax Engine"""
     return generate_diagram_code(prompt=req.prompt, diagram_type=req.diagramType or "flowchart")
+
+@app.post("/api/video/generate")
+async def generate_ai_video(req: VideoGenRequest):
+    """AI Video Generator Suite supporting cinematic motion synthesis and cloud video models."""
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt text is required for video generation.")
+    res = await generate_and_cache_video(
+        prompt=req.prompt.strip(),
+        static_dir=static_dir,
+        duration=req.duration or 4,
+        fps=req.fps or 24,
+        aspect_ratio=req.aspectRatio or "16:9",
+        motion_style=req.motionStyle or "cinematic_zoom",
+        title=req.title,
+        provider=req.provider or "auto",
+        api_key=req.apiKey
+    )
+    if res.get("status") == "error":
+        raise HTTPException(status_code=500, detail=res.get("message", "Video generation failed."))
+    return res
 
 
 @app.get("/favicon.ico", include_in_schema=False)

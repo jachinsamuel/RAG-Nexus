@@ -16,6 +16,16 @@ class DiagramGenRequest(BaseModel):
     prompt: str
     diagramType: Optional[str] = "flowchart"
 
+class VideoGenRequest(BaseModel):
+    prompt: str
+    duration: Optional[int] = 4
+    fps: Optional[int] = 24
+    aspectRatio: Optional[str] = "16:9"
+    motionStyle: Optional[str] = "cinematic_zoom"
+    title: Optional[str] = None
+    provider: Optional[str] = "auto"
+    apiKey: Optional[str] = None
+
 class ChatRequest(BaseModel):
     messages: List[Message]
     provider: str

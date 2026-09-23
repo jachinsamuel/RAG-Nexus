@@ -3991,3 +3991,319 @@ body.light-theme .grounding-claim-item {
     background: #f1f5f9 !important;
 }
 
+/* =========================================================
+   AI VIDEO GENERATOR & PLAYER CARD STYLES
+   ========================================================= */
+
+.video-gen-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.video-gen-btn:hover {
+    color: #f43f5e;
+    background: rgba(244, 63, 94, 0.12);
+}
+
+.nexus-video-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin: 16px 0;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+}
+
+.nexus-video-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.nexus-video-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+}
+
+.nexus-video-type-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(244, 63, 94, 0.15);
+    color: #f43f5e;
+    border: 1px solid rgba(244, 63, 94, 0.35);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.nexus-video-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+
+.nexus-video-spec-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.nexus-video-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.video-action-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.video-studio-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+}
+
+.video-action-btn:hover {
+    color: #fff;
+    border-color: #f43f5e;
+    background: rgba(244, 63, 94, 0.15);
+}
+
+.nexus-video-body {
+    position: relative;
+    width: 100%;
+    background: #000;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.nexus-video-player-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nexus-video-player {
+    width: 100%;
+    max-height: 480px;
+    display: block;
+    object-fit: contain;
+    background: #000;
+}
+
+.video-controls-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 14px;
+    background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 10;
+    opacity: 0.95;
+    transition: opacity 0.2s ease;
+}
+
+.video-play-toggle-btn {
+    background: rgba(244, 63, 94, 0.9);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+    flex-shrink: 0;
+}
+
+.video-play-toggle-btn:hover {
+    background: #f43f5e;
+    transform: scale(1.08);
+}
+
+.video-timeline-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.video-timeline-progress {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #f43f5e, #fb7185);
+    border-radius: 3px;
+    transition: width 0.1s linear;
+}
+
+.video-time-display {
+    font-size: 11px;
+    font-family: monospace;
+    color: #f1f5f9;
+    font-weight: 500;
+    min-width: 82px;
+    text-align: center;
+}
+
+.video-control-icon-btn {
+    background: none;
+    border: none;
+    color: #cbd5e1;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: color 0.2s;
+}
+
+.video-control-icon-btn:hover {
+    color: #fff;
+}
+
+.video-control-icon-btn.active {
+    color: #f43f5e;
+}
+
+.video-generating-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 44px 20px;
+    text-align: center;
+    gap: 14px;
+    width: 100%;
+}
+
+.video-spinner-pulse {
+    width: 44px;
+    height: 44px;
+    border: 3px solid rgba(244, 63, 94, 0.2);
+    border-top-color: #f43f5e;
+    border-radius: 50%;
+    animation: videoSpin 0.9s linear infinite;
+}
+
+@keyframes videoSpin {
+    to { transform: rotate(360deg); }
+}
+
+.video-generating-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f8fafc;
+}
+
+.video-generating-prompt {
+    font-size: 11px;
+    color: #94a3b8;
+    max-width: 420px;
+    line-height: 1.4;
+}
+
+/* Light Theme Adaptations for AI Video */
+body.theme-light .nexus-video-card,
+body.light-theme .nexus-video-card {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+body.theme-light .nexus-video-header,
+body.light-theme .nexus-video-header {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.theme-light .nexus-video-title,
+body.light-theme .nexus-video-title {
+    color: #0f172a !important;
+}
+
+body.theme-light .nexus-video-spec-badge,
+body.light-theme .nexus-video-spec-badge {
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.theme-light .video-action-btn,
+body.light-theme .video-action-btn {
+    background: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+    color: #475569 !important;
+}
+
+body.theme-light .video-action-btn:hover,
+body.light-theme .video-action-btn:hover {
+    background: #fee2e2 !important;
+    color: #e11d48 !important;
+    border-color: #f43f5e !important;
+}
+

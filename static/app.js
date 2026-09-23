@@ -1578,6 +1578,7 @@ function parseMarkdown(text) {
     const codeBlocks = [];
     const chartBlocks = [];
     const mermaidBlocks = [];
+    const videoBlocks = [];
     html = html.replace(/`{2,}([a-zA-Z0-9_\-.:]*)[ \t]*([^\r\n]*?)(?:\r?\n|(?=\s))([\s\S]*?)`{2,}/g, (match, lang, extra, code) => {
         let cleanLang = (lang || '').trim() || 'code';
         let rawCodeBody = (code || '').trim();
@@ -1682,6 +1683,78 @@ function parseMarkdown(text) {
                 <div class="nexus-chart-table-view" id="${chartId}-table"></div>
             </div>`);
             return `\n\n__CHART_BLOCK_${chartIdx}__\n\n`;
+        }
+
+        // Check for AI Video blocks
+        const isVideoLang = cleanLang.toLowerCase() === 'video' || cleanLang.toLowerCase() === 'mp4' || cleanLang.toLowerCase() === 'videogen';
+        const isVideoJson = !!(parsedSpec && (parsedSpec.prompt || parsedSpec.url) && (cleanLang.toLowerCase().includes('video') || String(parsedSpec.type || '').toLowerCase() === 'video'));
+        if (isVideoLang || isVideoJson) {
+            const videoIdx = videoBlocks.length;
+            const videoId = 'nexus-video-' + Math.random().toString(36).substring(2, 9);
+            const videoTitle = (parsedSpec && parsedSpec.title) ? parsedSpec.title : 'AI Generated Video';
+            const videoPrompt = (parsedSpec && parsedSpec.prompt) ? parsedSpec.prompt : unescapedCode.trim();
+            const videoUrl = (parsedSpec && parsedSpec.url) ? parsedSpec.url : '';
+            const motionStyle = (parsedSpec && parsedSpec.motionStyle) ? parsedSpec.motionStyle : 'cinematic_zoom';
+            const duration = (parsedSpec && parsedSpec.duration) ? parsedSpec.duration : 4;
+            const fps = (parsedSpec && parsedSpec.fps) ? parsedSpec.fps : 24;
+
+            videoBlocks.push(`
+            <div class="nexus-video-card" id="${videoId}-card" data-video-id="${videoId}" data-video-url="${videoUrl}" data-video-prompt="${encodeURIComponent(videoPrompt)}" data-video-title="${encodeURIComponent(videoTitle)}" data-motion-style="${motionStyle}" data-duration="${duration}" data-fps="${fps}">
+                <div class="nexus-video-header">
+                    <div class="nexus-video-meta">
+                        <span class="nexus-video-type-badge">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                            <span>AI VIDEO</span>
+                        </span>
+                        <span class="nexus-video-title" title="${videoTitle}">${videoTitle}</span>
+                        <span class="nexus-video-spec-badge">MP4 • ${fps} FPS • HD</span>
+                    </div>
+                    <div class="nexus-video-actions">
+                        <button class="video-action-btn copy-prompt-btn" onclick="copyVideoPrompt('${videoId}')" title="Copy Video Prompt">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span>Prompt</span>
+                        </button>
+                        <a href="${videoUrl || '#'}" download="nexus_${videoId}.mp4" class="video-action-btn download-video-btn" id="${videoId}-download-btn" title="Download MP4 Video" ${videoUrl ? '' : 'style="display:none;"'}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>Download MP4</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="nexus-video-body" id="${videoId}-body">
+                    ${videoUrl ? `
+                    <div class="nexus-video-player-wrapper">
+                        <video id="${videoId}-player" class="nexus-video-player" src="${videoUrl}" loop playsinline preload="auto"></video>
+                        <div class="video-controls-overlay">
+                            <button class="video-play-toggle-btn" onclick="toggleVideoPlayback('${videoId}')" title="Play / Pause">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            </button>
+                            <div class="video-timeline-bar" onclick="seekVideoTimeline(event, '${videoId}')">
+                                <div class="video-timeline-progress" id="${videoId}-progress"></div>
+                            </div>
+                            <div class="video-time-display" id="${videoId}-time">00:00 / 00:0${duration}</div>
+                            <button class="video-control-icon-btn" onclick="toggleVideoMute('${videoId}')" title="Mute / Unmute">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="vol-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                            </button>
+                            <button class="video-control-icon-btn active" onclick="toggleVideoLoop(this, '${videoId}')" title="Toggle Loop">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                            </button>
+                            <button class="video-control-icon-btn" onclick="toggleVideoTheater('${videoId}')" title="Fullscreen Mode">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    ` : `
+                    <div class="video-generating-placeholder" id="${videoId}-placeholder">
+                        <div class="video-spinner-pulse"></div>
+                        <div class="video-generating-info">
+                            <div class="video-generating-title">Synthesizing AI Video Motion...</div>
+                            <div class="video-generating-prompt">${videoPrompt}</div>
+                        </div>
+                    </div>
+                    `}
+                </div>
+            </div>`);
+            return `\n\n__VIDEO_BLOCK_${videoIdx}__\n\n`;
         }
 
         const blockIndex = codeBlocks.length;
@@ -1804,8 +1877,13 @@ function parseMarkdown(text) {
             trimmed = trimmed.replace(/__IMAGE_BLOCK_(\d+)__/g, (_, idx) => images[parseInt(idx)] || '');
         }
 
+        // Restore video blocks if present
+        if (trimmed.includes('__VIDEO_BLOCK_')) {
+            trimmed = trimmed.replace(/__VIDEO_BLOCK_(\d+)__/g, (_, idx) => videoBlocks[parseInt(idx)] || '');
+        }
+
         // If block is already a card/container div, return as-is
-        if (trimmed.startsWith('<div class="mermaid-wrapper"') || trimmed.startsWith('<div class="nexus-chart-card"') || trimmed.startsWith('<div class="code-container"') || trimmed.startsWith('<div class="nexus-table-card"') || trimmed.startsWith('<div class="image-showcase-card"')) {
+        if (trimmed.startsWith('<div class="mermaid-wrapper"') || trimmed.startsWith('<div class="nexus-chart-card"') || trimmed.startsWith('<div class="nexus-video-card"') || trimmed.startsWith('<div class="code-container"') || trimmed.startsWith('<div class="nexus-table-card"') || trimmed.startsWith('<div class="image-showcase-card"')) {
             return trimmed;
         }
 
@@ -1896,6 +1974,7 @@ function appendMessage(role, content, sources = null) {
     renderMath(msgContent);
     renderMermaidDiagrams(bubble);
     renderChartJsVisualizations(bubble);
+    renderVideoVisualizations(bubble);
     
     if (sources && sources.length > 0) {
         const sourcesContainer = document.createElement('div');
@@ -1965,16 +2044,17 @@ chatForm.addEventListener('submit', async (e) => {
     const query = queryInput.value.trim();
     if (!query) return;
     
-    // Check if query is an Image Generation request
+    // Check if query is an Image or Video Generation request
     const qLower = query.toLowerCase().trim();
     const isImageQuery = ["generate an image", "generate image", "create an image", "create image", "draw an image", "draw a picture", "draw image", "make an image"].some(t => qLower.includes(t));
+    const isVideoQuery = qLower.startsWith('/video') || ["generate a video", "generate video", "create a video", "create video", "make a video", "animate"].some(t => qLower.includes(t));
 
     // Synchronize active provider with inline model selector if present
     const inlineModelSelect = document.getElementById('chat-model-select');
     const activeProvider = (inlineModelSelect && inlineModelSelect.value) ? inlineModelSelect.value : (state.settings.provider || 'gemini');
     state.settings.provider = activeProvider;
 
-    if (!isImageQuery && activeProvider === 'gemini' && !state.settings.apiKey.trim()) {
+    if (!isImageQuery && !isVideoQuery && activeProvider === 'gemini' && !state.settings.apiKey.trim()) {
         showToast("Gemini API key is required. Please set it in configurations.", "error");
         openDrawer(settingsDrawer);
         return;
@@ -2229,7 +2309,8 @@ chatForm.addEventListener('submit', async (e) => {
                 }
                 renderMath(stream.assistantContentDiv);
                 renderMermaidDiagrams(stream.assistantBubble);
-    renderChartJsVisualizations(stream.assistantBubble);
+                renderChartJsVisualizations(stream.assistantBubble);
+                renderVideoVisualizations(stream.assistantBubble);
                 state.messages.push({ role: 'assistant', content: stream.assistantReply });
             }
             
@@ -2686,6 +2767,7 @@ function applyAppearance(themeName) {
                 if (existing) existing.destroy();
             });
             renderChartJsVisualizations(document);
+            renderVideoVisualizations(document);
         }
         if (window.mermaid) {
             initMermaidEngine();
@@ -4467,6 +4549,307 @@ function toggleChartTable(btn, chartId) {
     btn.style.color = isShown ? 'var(--text-secondary)' : 'var(--cyan-color)';
 }
 window.toggleChartTable = toggleChartTable;
+
+// =========================================================
+// AI VIDEO VISUALIZATION & PLAYER ENGINE
+// =========================================================
+function renderVideoVisualizations(container) {
+    if (!container) return;
+    const cards = container.querySelectorAll('.nexus-video-card');
+    cards.forEach(card => {
+        if (card.dataset.initialized === 'true') return;
+        card.dataset.initialized = 'true';
+        
+        const videoId = card.dataset.videoId;
+        const videoUrl = card.dataset.videoUrl;
+        const prompt = decodeURIComponent(card.dataset.videoPrompt || '');
+        const motionStyle = card.dataset.motionStyle || 'cinematic_zoom';
+        const duration = parseInt(card.dataset.duration) || 4;
+        const fps = parseInt(card.dataset.fps) || 24;
+        const title = decodeURIComponent(card.dataset.videoTitle || 'AI Generated Video');
+
+        if (videoUrl) {
+            setupVideoCardPlayer(card, videoId, videoUrl);
+        } else if (prompt) {
+            // Asynchronously synthesize the video if URL not yet generated
+            synthesizeVideoForCard(card, videoId, prompt, motionStyle, duration, fps, title);
+        }
+    });
+}
+window.renderVideoVisualizations = renderVideoVisualizations;
+
+function setupVideoCardPlayer(card, videoId, videoUrl) {
+    const video = document.getElementById(`${videoId}-player`);
+    const progress = document.getElementById(`${videoId}-progress`);
+    const timeDisplay = document.getElementById(`${videoId}-time`);
+    const playBtn = card.querySelector('.video-play-toggle-btn');
+    if (!video) return;
+
+    video.addEventListener('timeupdate', () => {
+        if (video.duration) {
+            const pct = (video.currentTime / video.duration) * 100;
+            if (progress) progress.style.width = `${pct}%`;
+            if (timeDisplay) {
+                const cur = formatVideoTime(video.currentTime);
+                const dur = formatVideoTime(video.duration);
+                timeDisplay.textContent = `${cur} / ${dur}`;
+            }
+        }
+    });
+
+    video.addEventListener('play', () => {
+        if (playBtn) playBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+    });
+
+    video.addEventListener('pause', () => {
+        if (playBtn) playBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+    });
+
+    video.addEventListener('ended', () => {
+        if (!video.loop && playBtn) {
+            playBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+        }
+    });
+
+    // Start playback muted to adhere to autoplay browser guidelines
+    video.muted = true;
+    video.play().catch(e => console.log('Autoplay muted note:', e));
+}
+
+function formatVideoTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+async function synthesizeVideoForCard(card, videoId, prompt, motionStyle, duration, fps, title) {
+    const body = document.getElementById(`${videoId}-body`);
+    const downloadBtn = document.getElementById(`${videoId}-download-btn`);
+
+    try {
+        const res = await fetch('/api/video/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, motionStyle, duration, fps, title })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success' && data.videoUrl) {
+            card.dataset.videoUrl = data.videoUrl;
+            if (downloadBtn) {
+                downloadBtn.href = data.videoUrl;
+                downloadBtn.style.display = 'inline-flex';
+            }
+            if (body) {
+                body.innerHTML = `
+                <div class="nexus-video-player-wrapper">
+                    <video id="${videoId}-player" class="nexus-video-player" src="${data.videoUrl}" loop playsinline preload="auto"></video>
+                    <div class="video-controls-overlay">
+                        <button class="video-play-toggle-btn" onclick="toggleVideoPlayback('${videoId}')" title="Play / Pause">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        </button>
+                        <div class="video-timeline-bar" onclick="seekVideoTimeline(event, '${videoId}')">
+                            <div class="video-timeline-progress" id="${videoId}-progress"></div>
+                        </div>
+                        <div class="video-time-display" id="${videoId}-time">00:00 / 00:0${duration}</div>
+                        <button class="video-control-icon-btn" onclick="toggleVideoMute('${videoId}')" title="Mute / Unmute">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                        </button>
+                        <button class="video-control-icon-btn active" onclick="toggleVideoLoop(this, '${videoId}')" title="Toggle Loop">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                        </button>
+                        <button class="video-control-icon-btn" onclick="toggleVideoTheater('${videoId}')" title="Fullscreen Mode">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+                        </button>
+                    </div>
+                </div>`;
+                setupVideoCardPlayer(card, videoId, data.videoUrl);
+            }
+        } else {
+            throw new Error(data.detail || data.message || 'Video synthesis failed');
+        }
+    } catch (err) {
+        console.error('Video gen error:', err);
+        if (body) {
+            body.innerHTML = `
+            <div style="padding: 16px; text-align: center; color: var(--red-alert, #f43f5e); font-size: 12px; background: rgba(244, 63, 94, 0.08); border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 4px;">Video Synthesis Notice</div>
+                <div style="opacity: 0.85; margin-bottom: 8px;">${err.message || 'Could not synthesize video clip.'}</div>
+                <button type="button" class="video-action-btn" onclick="retryVideoGeneration('${videoId}')" style="margin: 0 auto; display: inline-flex;">Retry</button>
+            </div>`;
+        }
+    }
+}
+
+window.retryVideoGeneration = function(videoId) {
+    const card = document.getElementById(`${videoId}-card`);
+    if (!card) return;
+    card.dataset.initialized = 'false';
+    const body = document.getElementById(`${videoId}-body`);
+    if (body) {
+        body.innerHTML = `
+        <div class="video-generating-placeholder" id="${videoId}-placeholder">
+            <div class="video-spinner-pulse"></div>
+            <div class="video-generating-info">
+                <div class="video-generating-title">Retrying AI Video Motion Synthesis...</div>
+            </div>
+        </div>`;
+    }
+    renderVideoVisualizations(card.parentElement || document);
+};
+
+window.toggleVideoPlayback = function(videoId) {
+    const video = document.getElementById(`${videoId}-player`);
+    if (!video) return;
+    if (video.paused) {
+        video.play();
+    } else {
+        video.pause();
+    }
+};
+
+window.seekVideoTimeline = function(e, videoId) {
+    const video = document.getElementById(`${videoId}-player`);
+    const timeline = e.currentTarget;
+    if (!video || !timeline || !video.duration) return;
+    const rect = timeline.getBoundingClientRect();
+    const pos = (e.clientX - rect.left) / rect.width;
+    video.currentTime = Math.max(0, Math.min(video.duration, pos * video.duration));
+};
+
+window.toggleVideoMute = function(videoId) {
+    const video = document.getElementById(`${videoId}-player`);
+    if (!video) return;
+    video.muted = !video.muted;
+    showToast(video.muted ? 'Video Muted' : 'Video Unmuted', 'info');
+};
+
+window.toggleVideoLoop = function(btn, videoId) {
+    const video = document.getElementById(`${videoId}-player`);
+    if (!video) return;
+    video.loop = !video.loop;
+    if (video.loop) {
+        btn.classList.add('active');
+        showToast('Loop enabled', 'info');
+    } else {
+        btn.classList.remove('active');
+        showToast('Loop disabled', 'info');
+    }
+};
+
+window.toggleVideoTheater = function(videoId) {
+    const video = document.getElementById(`${videoId}-player`);
+    if (!video) return;
+    if (video.requestFullscreen) {
+        video.requestFullscreen();
+    } else if (video.webkitRequestFullscreen) {
+        video.webkitRequestFullscreen();
+    }
+};
+
+window.copyVideoPrompt = function(videoId) {
+    const card = document.getElementById(`${videoId}-card`);
+    if (!card) return;
+    const prompt = decodeURIComponent(card.dataset.videoPrompt || '');
+    if (prompt) {
+        navigator.clipboard.writeText(prompt);
+        showToast('Video prompt copied to clipboard!', 'success');
+    }
+};
+
+// AI Video Generator Studio Modal Logic
+function initVideoStudioModal() {
+    const videoGenBtn = document.getElementById('video-gen-btn');
+    const videoGenModal = document.getElementById('video-gen-modal');
+    const videoModalClose = document.getElementById('video-modal-close');
+    const videoModalCancel = document.getElementById('video-modal-cancel');
+    const triggerGenVideoBtn = document.getElementById('trigger-generate-video-btn');
+    const videoPromptInput = document.getElementById('video-prompt-input');
+    const videoAspectSelect = document.getElementById('video-aspect-select');
+    const videoMotionSelect = document.getElementById('video-motion-select');
+    const videoDurationSelect = document.getElementById('video-duration-select');
+    const videoPreviewWrapper = document.getElementById('video-preview-wrapper');
+    const videoStudioPreviewPlayer = document.getElementById('video-studio-preview-player');
+    const videoStudioDownloadLink = document.getElementById('video-studio-download-link');
+    const videoInsertChatBtn = document.getElementById('video-insert-chat-btn');
+
+    let latestGeneratedVideoUrl = '';
+    let latestGeneratedVideoPrompt = '';
+
+    if (videoGenBtn) {
+        videoGenBtn.addEventListener('click', () => {
+            if (videoGenModal) videoGenModal.style.display = 'flex';
+        });
+    }
+    if (videoModalClose) videoModalClose.addEventListener('click', () => { if (videoGenModal) videoGenModal.style.display = 'none'; });
+    if (videoModalCancel) videoModalCancel.addEventListener('click', () => { if (videoGenModal) videoGenModal.style.display = 'none'; });
+
+    if (triggerGenVideoBtn) {
+        triggerGenVideoBtn.addEventListener('click', async () => {
+            const prompt = videoPromptInput?.value.trim();
+            if (!prompt) {
+                showToast('Please provide a video scene description.', 'error');
+                return;
+            }
+
+            const aspectRatio = videoAspectSelect?.value || '16:9';
+            const motionStyle = videoMotionSelect?.value || 'cinematic_zoom';
+            const duration = parseInt(videoDurationSelect?.value) || 4;
+
+            triggerGenVideoBtn.disabled = true;
+            triggerGenVideoBtn.textContent = 'Synthesizing AI Video...';
+
+            try {
+                const res = await fetch('/api/video/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, aspectRatio, motionStyle, duration, fps: 24, title: prompt.slice(0, 30) })
+                });
+                const data = await res.json();
+
+                if (data.status === 'success' && data.videoUrl) {
+                    latestGeneratedVideoUrl = data.videoUrl;
+                    latestGeneratedVideoPrompt = prompt;
+
+                    if (videoStudioPreviewPlayer) {
+                        videoStudioPreviewPlayer.src = data.videoUrl;
+                        videoStudioPreviewPlayer.play().catch(e => {});
+                    }
+                    if (videoStudioDownloadLink) videoStudioDownloadLink.href = data.videoUrl;
+                    if (videoPreviewWrapper) videoPreviewWrapper.style.display = 'flex';
+
+                    showToast('AI Video clip generated successfully!', 'success');
+                } else {
+                    throw new Error(data.detail || data.message || 'Video generation failed');
+                }
+            } catch (e) {
+                console.error('Video gen error:', e);
+                showToast('Video generation failed: ' + e.message, 'error');
+            } finally {
+                triggerGenVideoBtn.disabled = false;
+                triggerGenVideoBtn.textContent = 'Generate Video Clip';
+            }
+        });
+    }
+
+    if (videoInsertChatBtn) {
+        videoInsertChatBtn.addEventListener('click', () => {
+            if (!latestGeneratedVideoUrl) return;
+            const queryInput = document.getElementById('query-input');
+            if (queryInput) {
+                const videoCode = `\`\`\`video\n{\n  "title": "${(latestGeneratedVideoPrompt || 'AI Video').replace(/"/g, '')}",\n  "url": "${latestGeneratedVideoUrl}",\n  "prompt": "${(latestGeneratedVideoPrompt || '').replace(/"/g, '')}"\n}\n\`\`\``;
+                queryInput.value = videoCode;
+                if (videoGenModal) videoGenModal.style.display = 'none';
+                showToast('Inserted video block into chat input!', 'success');
+            }
+        });
+    }
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initVideoStudioModal);
+} else {
+    initVideoStudioModal();
+}
 
 // =========================================================
 // DEEP RESEARCH STEPPER & RAG EVALUATION HANDLERS
