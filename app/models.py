@@ -11,6 +11,11 @@ class ImageGenRequest(BaseModel):
     height: Optional[int] = 1024
     seed: Optional[int] = 42
     model: Optional[str] = "flux"
+    provider: Optional[str] = "auto"
+    apiKey: Optional[str] = None
+    aspectRatio: Optional[str] = "1:1"
+    style: Optional[str] = None
+    negativePrompt: Optional[str] = None
 
 class DiagramGenRequest(BaseModel):
     prompt: str
@@ -25,6 +30,7 @@ class VideoGenRequest(BaseModel):
     title: Optional[str] = None
     provider: Optional[str] = "auto"
     apiKey: Optional[str] = None
+    negativePrompt: Optional[str] = None
 
 class ChatRequest(BaseModel):
     messages: List[Message]

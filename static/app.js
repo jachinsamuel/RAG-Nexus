@@ -4240,84 +4240,112 @@ if (diagramInsertChatBtn) {
 }
 
 // AI Image Generator Studio Modal Logic
-const imageModalBtn = document.getElementById('image-modal-btn');
-const imageGenModal = document.getElementById('image-gen-modal');
-const imageModalClose = document.getElementById('image-modal-close');
-const triggerGenImageBtn = document.getElementById('trigger-generate-image-btn');
-const imagePromptInput = document.getElementById('image-prompt-input');
-const imageDimensionSelect = document.getElementById('image-dimension-select');
-const imageModelSelect = document.getElementById('image-model-select');
-const imagePreviewWrapper = document.getElementById('image-preview-wrapper');
-const imagePreviewImg = document.getElementById('image-preview-img');
-const imageDownloadLink = document.getElementById('image-download-link');
-const imageInsertChatBtn = document.getElementById('image-insert-chat-btn');
+function initImageStudioModal() {
+    const imageModalBtn = document.getElementById('image-modal-btn');
+    const imageGenModal = document.getElementById('image-gen-modal');
+    const imageModalClose = document.getElementById('image-modal-close');
+    const imageModalCancel = document.getElementById('image-modal-cancel');
+    const triggerGenImageBtn = document.getElementById('trigger-generate-image-btn');
+    const imagePromptInput = document.getElementById('image-prompt-input');
+    const imageEngineSelect = document.getElementById('image-engine-select');
+    const imageAspectSelect = document.getElementById('image-aspect-select');
+    const imageStyleSelect = document.getElementById('image-style-select');
+    const imageNegativeInput = document.getElementById('image-negative-input');
+    const imagePreviewWrapper = document.getElementById('image-preview-wrapper');
+    const imagePreviewImg = document.getElementById('image-preview-img');
+    const imagePreviewStatus = document.getElementById('image-preview-status');
+    const imageDownloadLink = document.getElementById('image-download-link');
+    const imageInsertChatBtn = document.getElementById('image-insert-chat-btn');
 
-let latestGeneratedImageUrl = '';
-let latestGeneratedPrompt = '';
+    let latestGeneratedImageUrl = '';
+    let latestGeneratedPrompt = '';
 
-if (imageModalBtn) {
-    imageModalBtn.addEventListener('click', () => {
-        imageGenModal.style.display = 'flex';
-    });
-}
-if (imageModalClose) imageModalClose.addEventListener('click', () => imageGenModal.style.display = 'none');
+    if (imageModalBtn) {
+        imageModalBtn.addEventListener('click', () => {
+            if (imageGenModal) imageGenModal.style.display = 'flex';
+        });
+    }
+    if (imageModalClose) imageModalClose.addEventListener('click', () => { if (imageGenModal) imageGenModal.style.display = 'none'; });
+    if (imageModalCancel) imageModalCancel.addEventListener('click', () => { if (imageGenModal) imageGenModal.style.display = 'none'; });
 
-if (triggerGenImageBtn) {
-    triggerGenImageBtn.addEventListener('click', async () => {
-        const prompt = imagePromptInput?.value.trim();
-        if (!prompt) {
-            showToast('Please provide a prompt description.', 'error');
-            return;
-        }
-        
-        const dims = (imageDimensionSelect?.value || '1024x1024').split('x');
-        const width = parseInt(dims[0]) || 1024;
-        const height = parseInt(dims[1]) || 1024;
-        const model = imageModelSelect?.value || 'flux';
-        
-        triggerGenImageBtn.disabled = true;
-        triggerGenImageBtn.textContent = 'Generating AI Image (this takes a few seconds)...';
-        
-        try {
-            const res = await fetch('/api/image/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, width, height, model, seed: Math.floor(Math.random() * 999999) })
-            });
-            const data = await res.json();
-            
-            if (data.status === 'success' && data.imageUrl) {
-                latestGeneratedImageUrl = data.imageUrl;
-                latestGeneratedPrompt = prompt;
-                
-                if (imagePreviewImg) imagePreviewImg.src = data.imageUrl;
-                if (imageDownloadLink) imageDownloadLink.href = data.imageUrl;
-                if (imagePreviewWrapper) imagePreviewWrapper.style.display = 'flex';
-                
-                showToast('AI Image generated successfully!', 'success');
-            } else {
-                throw new Error(data.message || 'Image generation failed');
+    if (triggerGenImageBtn) {
+        triggerGenImageBtn.addEventListener('click', async () => {
+            const prompt = imagePromptInput?.value.trim();
+            if (!prompt) {
+                showToast('Please provide a prompt description.', 'error');
+                return;
             }
-        } catch (e) {
-            console.error('Image gen error:', e);
-            showToast('Failed to generate image: ' + e.message, 'error');
-        } finally {
-            triggerGenImageBtn.disabled = false;
-            triggerGenImageBtn.textContent = 'Generate AI Image';
-        }
-    });
+            
+            const engine = imageEngineSelect?.value || 'auto';
+            const aspectRatio = imageAspectSelect?.value || '1:1';
+            const style = imageStyleSelect?.value || 'natural';
+            const negativePrompt = imageNegativeInput?.value.trim() || null;
+            
+            // Grab active provider key from settings if available
+            const apiKey = document.getElementById('api-key-input')?.value.trim() || null;
+            
+            triggerGenImageBtn.disabled = true;
+            triggerGenImageBtn.textContent = 'Generating AI Image with ' + (engine === 'auto' ? 'Diffusion' : engine.toUpperCase()) + '...';
+            
+            try {
+                const res = await fetch('/api/image/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        prompt, 
+                        provider: engine,
+                        apiKey,
+                        aspectRatio,
+                        style,
+                        negativePrompt,
+                        model: engine,
+                        seed: Math.floor(Math.random() * 999999) 
+                    })
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success' && data.imageUrl) {
+                    latestGeneratedImageUrl = data.imageUrl;
+                    latestGeneratedPrompt = prompt;
+                    
+                    if (imagePreviewImg) imagePreviewImg.src = data.imageUrl;
+                    if (imageDownloadLink) imageDownloadLink.href = data.imageUrl;
+                    if (imagePreviewStatus) {
+                        imagePreviewStatus.textContent = `Generated with ${data.provider || 'AI Diffusion'} (${data.width}x${data.height})`;
+                    }
+                    if (imagePreviewWrapper) imagePreviewWrapper.style.display = 'flex';
+                    
+                    showToast(`AI Image generated via ${data.provider || 'Diffusion'}!`, 'success');
+                } else {
+                    throw new Error(data.detail || data.message || 'Image generation failed');
+                }
+            } catch (e) {
+                console.error('Image gen error:', e);
+                showToast('Failed to generate image: ' + e.message, 'error');
+            } finally {
+                triggerGenImageBtn.disabled = false;
+                triggerGenImageBtn.textContent = 'Generate AI Image';
+            }
+        });
+    }
+
+    if (imageInsertChatBtn) {
+        imageInsertChatBtn.addEventListener('click', () => {
+            if (!latestGeneratedImageUrl) return;
+            const queryInput = document.getElementById('query-input');
+            if (queryInput) {
+                queryInput.value = `![${latestGeneratedPrompt}](${latestGeneratedImageUrl})`;
+            }
+            if (imageGenModal) imageGenModal.style.display = 'none';
+            showToast('Image markdown loaded into chat input!', 'success');
+        });
+    }
 }
 
-if (imageInsertChatBtn) {
-    imageInsertChatBtn.addEventListener('click', () => {
-        if (!latestGeneratedImageUrl) return;
-        const queryInput = document.getElementById('query-input');
-        if (queryInput) {
-            queryInput.value = `![${latestGeneratedPrompt}](${latestGeneratedImageUrl})`;
-        }
-        imageGenModal.style.display = 'none';
-        showToast('Image markdown loaded into chat input!', 'success');
-    });
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initImageStudioModal);
+} else {
+    initImageStudioModal();
 }
 
 // Call renderMermaidDiagrams in appendMessage & DOMContentLoaded
@@ -4765,16 +4793,20 @@ function initVideoStudioModal() {
     const videoModalCancel = document.getElementById('video-modal-cancel');
     const triggerGenVideoBtn = document.getElementById('trigger-generate-video-btn');
     const videoPromptInput = document.getElementById('video-prompt-input');
+    const videoEngineSelect = document.getElementById('video-engine-select');
     const videoAspectSelect = document.getElementById('video-aspect-select');
-    const videoMotionSelect = document.getElementById('video-motion-select');
     const videoDurationSelect = document.getElementById('video-duration-select');
+    const videoNegativeInput = document.getElementById('video-negative-input');
+    const videoApiKeyInput = document.getElementById('video-api-key-input');
     const videoPreviewWrapper = document.getElementById('video-preview-wrapper');
     const videoStudioPreviewPlayer = document.getElementById('video-studio-preview-player');
+    const videoPreviewStatus = document.getElementById('video-preview-status');
     const videoStudioDownloadLink = document.getElementById('video-studio-download-link');
     const videoInsertChatBtn = document.getElementById('video-insert-chat-btn');
 
     let latestGeneratedVideoUrl = '';
     let latestGeneratedVideoPrompt = '';
+    let latestGeneratedVideoProvider = '';
 
     if (videoGenBtn) {
         videoGenBtn.addEventListener('click', () => {
@@ -4792,33 +4824,48 @@ function initVideoStudioModal() {
                 return;
             }
 
+            const engine = videoEngineSelect?.value || 'auto';
             const aspectRatio = videoAspectSelect?.value || '16:9';
-            const motionStyle = videoMotionSelect?.value || 'cinematic_zoom';
-            const duration = parseInt(videoDurationSelect?.value) || 4;
+            const duration = parseInt(videoDurationSelect?.value) || 2;
+            const negativePrompt = videoNegativeInput?.value.trim() || undefined;
+            const customToken = videoApiKeyInput?.value.trim() || document.getElementById('api-key-input')?.value.trim() || undefined;
 
             triggerGenVideoBtn.disabled = true;
-            triggerGenVideoBtn.textContent = 'Synthesizing AI Video...';
+            triggerGenVideoBtn.textContent = 'Generating AI Video Diffusion (takes ~15s)...';
 
             try {
                 const res = await fetch('/api/video/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt, aspectRatio, motionStyle, duration, fps: 24, title: prompt.slice(0, 30) })
+                    body: JSON.stringify({ 
+                        prompt, 
+                        provider: engine,
+                        aspectRatio, 
+                        duration, 
+                        fps: 24, 
+                        title: prompt.slice(0, 30),
+                        negativePrompt,
+                        apiKey: customToken
+                    })
                 });
                 const data = await res.json();
 
                 if (data.status === 'success' && data.videoUrl) {
                     latestGeneratedVideoUrl = data.videoUrl;
                     latestGeneratedVideoPrompt = prompt;
+                    latestGeneratedVideoProvider = data.provider || 'AI Diffusion';
 
                     if (videoStudioPreviewPlayer) {
                         videoStudioPreviewPlayer.src = data.videoUrl;
                         videoStudioPreviewPlayer.play().catch(e => {});
                     }
+                    if (videoPreviewStatus) {
+                        videoPreviewStatus.textContent = `Diffusion Video Ready: ${latestGeneratedVideoProvider} (${data.resolution || '704x512'})`;
+                    }
                     if (videoStudioDownloadLink) videoStudioDownloadLink.href = data.videoUrl;
                     if (videoPreviewWrapper) videoPreviewWrapper.style.display = 'flex';
 
-                    showToast('AI Video clip generated successfully!', 'success');
+                    showToast(`AI Video diffusion generated via ${latestGeneratedVideoProvider}!`, 'success');
                 } else {
                     throw new Error(data.detail || data.message || 'Video generation failed');
                 }
@@ -4827,7 +4874,7 @@ function initVideoStudioModal() {
                 showToast('Video generation failed: ' + e.message, 'error');
             } finally {
                 triggerGenVideoBtn.disabled = false;
-                triggerGenVideoBtn.textContent = 'Generate Video Clip';
+                triggerGenVideoBtn.textContent = 'Generate AI Video';
             }
         });
     }
@@ -4837,7 +4884,7 @@ function initVideoStudioModal() {
             if (!latestGeneratedVideoUrl) return;
             const queryInput = document.getElementById('query-input');
             if (queryInput) {
-                const videoCode = `\`\`\`video\n{\n  "title": "${(latestGeneratedVideoPrompt || 'AI Video').replace(/"/g, '')}",\n  "url": "${latestGeneratedVideoUrl}",\n  "prompt": "${(latestGeneratedVideoPrompt || '').replace(/"/g, '')}"\n}\n\`\`\``;
+                const videoCode = `\`\`\`video\n{\n  "title": "${(latestGeneratedVideoPrompt || 'AI Video').replace(/"/g, '')}",\n  "url": "${latestGeneratedVideoUrl}",\n  "prompt": "${(latestGeneratedVideoPrompt || '').replace(/"/g, '')}",\n  "provider": "${latestGeneratedVideoProvider}"\n}\n\`\`\``;
                 queryInput.value = videoCode;
                 if (videoGenModal) videoGenModal.style.display = 'none';
                 showToast('Inserted video block into chat input!', 'success');

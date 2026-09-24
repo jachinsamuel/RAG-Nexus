@@ -1017,6 +1017,30 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 embedding=query_embedding
             )
 
+        # Direct /image shortcut command handling
+        if query.strip().startswith("/image"):
+            img_prompt = extract_image_prompt(query)
+            async def direct_image_stream():
+                yield f"event: telemetry\ndata: {json.dumps({'latency_ms': 50, 'cache_hit': False})}\n\n"
+                yield f"event: sources\ndata: {json.dumps([])}\n\n"
+                img_res = await download_and_cache_image(
+                    prompt=img_prompt,
+                    static_dir=static_dir,
+                    width=1024,
+                    height=1024,
+                    seed=42,
+                    provider="auto",
+                    api_key=request.apiKey,
+                    aspect_ratio="1:1"
+                )
+                if img_res.get("status") == "success":
+                    img_block = f"![{img_prompt}]({img_res.get('imageUrl')})\n\n*Generated with {img_res.get('provider', 'AI Diffusion')}*"
+                else:
+                    img_block = f"Unable to generate image: {img_res.get('message', 'Generation error')}"
+                yield f"event: text\ndata: {json.dumps(img_block)}\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(direct_image_stream(), media_type="text/event-stream")
+
         # Direct /video shortcut command handling
         if query.strip().startswith("/video"):
             video_prompt = extract_video_prompt(query)
@@ -1026,11 +1050,13 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 video_res = await generate_and_cache_video(
                     prompt=video_prompt,
                     static_dir=static_dir,
-                    duration=4,
+                    duration=3,
                     fps=24,
                     aspect_ratio="16:9",
                     motion_style="cinematic_zoom",
-                    title=video_prompt.capitalize()
+                    title=video_prompt.capitalize(),
+                    provider="auto",
+                    api_key=request.apiKey
                 )
                 if video_res.get("status") == "success":
                     video_block = (
@@ -1039,7 +1065,8 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                             "title": video_res.get("title", "AI Generated Video"),
                             "prompt": video_prompt,
                             "url": video_res.get("videoUrl"),
-                            "duration": video_res.get("duration", 4),
+                            "provider": video_res.get("provider", "LTX-Video Diffusion"),
+                            "duration": video_res.get("duration", 3),
                             "fps": video_res.get("fps", 24)
                         }, indent=2) + 
                         "\n```\n"
@@ -1499,7 +1526,7 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
 
 @app.post("/api/image/generate")
 async def generate_ai_image(req: ImageGenRequest):
-    """AI Image Generator Suite using Pollinations FLUX API"""
+    """AI Image Generator Suite supporting Google Imagen 3, OpenAI DALL-E 3, and FLUX.1"""
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt text is required for image generation.")
     return await download_and_cache_image(
@@ -1508,7 +1535,12 @@ async def generate_ai_image(req: ImageGenRequest):
         width=req.width or 1024,
         height=req.height or 1024,
         seed=req.seed or 42,
-        model=req.model or "flux"
+        model=req.model or "flux",
+        provider=req.provider or "auto",
+        api_key=req.apiKey,
+        aspect_ratio=req.aspectRatio or "1:1",
+        style=req.style,
+        negative_prompt=req.negativePrompt
     )
 
 @app.post("/api/diagram/generate")
@@ -1518,19 +1550,20 @@ async def generate_mermaid_diagram(req: DiagramGenRequest):
 
 @app.post("/api/video/generate")
 async def generate_ai_video(req: VideoGenRequest):
-    """AI Video Generator Suite supporting cinematic motion synthesis and cloud video models."""
+    """AI Video Generator Suite supporting true transformer diffusion (LTX-Video, Wan2.1, Replicate, Fal)"""
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt text is required for video generation.")
     res = await generate_and_cache_video(
         prompt=req.prompt.strip(),
         static_dir=static_dir,
-        duration=req.duration or 4,
+        duration=req.duration or 3,
         fps=req.fps or 24,
         aspect_ratio=req.aspectRatio or "16:9",
         motion_style=req.motionStyle or "cinematic_zoom",
         title=req.title,
         provider=req.provider or "auto",
-        api_key=req.apiKey
+        api_key=req.apiKey,
+        negative_prompt=req.negativePrompt
     )
     if res.get("status") == "error":
         raise HTTPException(status_code=500, detail=res.get("message", "Video generation failed."))

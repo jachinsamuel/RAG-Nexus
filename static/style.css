@@ -3995,6 +3995,24 @@ body.light-theme .grounding-claim-item {
    AI VIDEO GENERATOR & PLAYER CARD STYLES
    ========================================================= */
 
+.image-modal-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.image-modal-btn:hover {
+    color: var(--cyan-color);
+    background: rgba(0, 243, 255, 0.12);
+}
+
 .video-gen-btn {
     background: none;
     border: none;
