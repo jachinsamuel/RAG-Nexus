@@ -27,7 +27,7 @@ const state = {
         workspacePath: '',
         workspaceHistory: [],
         retrievalStrategy: 'hybrid',
-        theme: 'light',
+        theme: 'dark',
         designStyle: 'minimalist'
     },
     documents: [],
@@ -2046,7 +2046,7 @@ chatForm.addEventListener('submit', async (e) => {
     
     // Check if query is an Image or Video Generation request
     const qLower = query.toLowerCase().trim();
-    const isImageQuery = ["generate an image", "generate image", "create an image", "create image", "draw an image", "draw a picture", "draw image", "make an image"].some(t => qLower.includes(t));
+    const isImageQuery = qLower.startsWith('/image') || ["generate an image", "generate image", "create an image", "create image", "draw an image", "draw a picture", "draw image", "make an image"].some(t => qLower.includes(t));
     const isVideoQuery = qLower.startsWith('/video') || ["generate a video", "generate video", "create a video", "create video", "make a video", "animate"].some(t => qLower.includes(t));
 
     // Synchronize active provider with inline model selector if present
@@ -2224,7 +2224,10 @@ chatForm.addEventListener('submit', async (e) => {
                 if (trimmed.startsWith('event: ')) {
                     currentEvent = trimmed.substring(7);
                 } else if (trimmed.startsWith('data: ')) {
-                    const dataStr = trimmed.substring(6);
+                    const dataStr = trimmed.substring(6).trim();
+                    if (dataStr === '[DONE]') {
+                        break;
+                    }
                     if (currentEvent === 'sources') {
                         stream.sources = JSON.parse(dataStr);
                         if (convId === state.activeConversationId) {
@@ -4886,6 +4889,8 @@ function initVideoStudioModal() {
             if (queryInput) {
                 const videoCode = `\`\`\`video\n{\n  "title": "${(latestGeneratedVideoPrompt || 'AI Video').replace(/"/g, '')}",\n  "url": "${latestGeneratedVideoUrl}",\n  "prompt": "${(latestGeneratedVideoPrompt || '').replace(/"/g, '')}",\n  "provider": "${latestGeneratedVideoProvider}"\n}\n\`\`\``;
                 queryInput.value = videoCode;
+                queryInput.dispatchEvent(new Event('input', { bubbles: true }));
+                if (typeof updateQueryInputState === 'function') updateQueryInputState();
                 if (videoGenModal) videoGenModal.style.display = 'none';
                 showToast('Inserted video block into chat input!', 'success');
             }

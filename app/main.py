@@ -1038,7 +1038,6 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                 else:
                     img_block = f"Unable to generate image: {img_res.get('message', 'Generation error')}"
                 yield f"event: text\ndata: {json.dumps(img_block)}\n\n"
-                yield "data: [DONE]\n\n"
             return StreamingResponse(direct_image_stream(), media_type="text/event-stream")
 
         # Direct /video shortcut command handling
@@ -1075,7 +1074,6 @@ async def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks):
                     video_block = f"Unable to generate video: {video_res.get('message', 'Generation error')}"
                 
                 yield f"event: text\ndata: {json.dumps(video_block)}\n\n"
-                yield "data: [DONE]\n\n"
             return StreamingResponse(direct_video_stream(), media_type="text/event-stream")
 
         # Check if query is in semantic cache
